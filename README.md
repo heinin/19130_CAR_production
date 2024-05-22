@@ -1,0 +1,5 @@
+# 19130_CAR_production
+
+A [workflowr][] project.
+
+[workflowr]: https://github.com/workflowr/workflowr
