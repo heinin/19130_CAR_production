@@ -1,0 +1,396 @@
+---
+title: "19130: CAR T Production. Processing 10x data"
+author: "heinin"
+date: "2024-05-22"
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Processing 10x data
+
+### Libraries and environment variables
+```{r, message = F, warning = F}
+
+library(workflowr)
+library(Seurat)
+library(googlesheets4)
+library(tidyverse)
+library(plyr)
+library(SoupX)
+library(pheatbuilder)
+
+setwd("/home/hnatri/19130_CAR_production/")
+set.seed(1234)
+options(future.globals.maxSize = 30000 * 1024^2)
+reduction <- "umap"
+
+source("/home/hnatri/SingleCellBestPractices/scripts/preprocessing_qc_module.R")
+
+```
+
+### Import 10x data, demultiplexing
+
+The setup is two runs with the same samples:\
+*Run1 (well 3A) F07344-GEX_F07352-CAR_F07348-FB, with a 50-60k pool load,\
+*Run2 (well 3B) F07345-GEX_F07353-CAR_F07349-FB, with a 90-100k pool load
+
+```{r, message = F, warning = F}
+
+# Metadata
+# https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing
+gs4_deauth()
+production_samples  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
+#sheet_names(production_samples)
+production_samples <- read_sheet(production_samples, sheet = "Samples")
+
+# Importing data. Two runs with the same samples.
+# Concated GEX: /tgen_labs/banovich/SingleCell/CellRanger/7_1_0/Projects/BCTCSF/HT/BCTCSF_0130_1_PB_CONCAT_C1_X5HT2_F07344-F07345_CONCAT
+path_list <- list("run1" = unique(production_samples[which(production_samples$Run=="run1"),]$CellRanger_path),
+                  "run2" = unique(production_samples[which(production_samples$Run=="run2"),]$CellRanger_path))
+
+# Cell hashing antibody names
+hash_antibodies <- unique(production_samples$Hash_ID)
+
+# Demultiplexing
+seurat_list <- prep_seurat_list_multiplexed(metadata = production_samples,
+                                            batch_ID = "Run",
+                                            cellRanger_path = "CellRanger_path",
+                                            cell_ID_prefix = "Sample_Name",
+                                            CellHashing_Ab = "Hash_ID",
+                                            Hash_Abs = hash_antibodies)
+```
+
+Singlets and doublets for each run.
+
+```{r, message = F, warning = F, fig.width = 12, fig.height = 8}
+# Singlets/doublets
+table(seurat_list[["run1"]]$Hash_classification.global)
+table(seurat_list[["run2"]]$Hash_classification.global)
+
+p1 <- table(seurat_list[["run1"]]$Hash_classification.global) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Hash classification for run 1") +
+  ylab("# cells") +
+  NoLegend()
+
+p2 <- table(seurat_list[["run1"]]$Hash_maxID) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Hash classification for run 1") +
+  ylab("# cells") +
+  NoLegend()
+
+p3 <- table(seurat_list[["run2"]]$Hash_classification.global) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Hash classification for run 2") +
+  ylab("# cells") +
+  NoLegend()
+
+p4 <- table(seurat_list[["run2"]]$Hash_maxID) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Hash classification for run 2") +
+  ylab("# cells") +
+  NoLegend()
+
+(p1 + p2) / (p3 + p4)
+
+```
+
+Plotting HTO counts.
+
+```{r, message = F, warning = F}
+
+# Plotting HTO counts
+hash_counts <- lapply(seurat_list, function(xx){
+  hash <- LayerData(xx, assay = "Hash", layer = "counts")
+  hash <- as.data.frame(t(hash))
+  hash$hash_classification <- mapvalues(rownames(hash),
+                             from = rownames(xx@meta.data),
+                             to = xx@meta.data$Hash_maxID)
+  
+  hash
+})
+
+hash_antibodies <- gsub("_", "-", hash_antibodies)
+
+```
+
+Run 1
+
+```{r, message = F, warning = F}
+
+hash_counts[[1]] %>% pivot_longer(cols = hash_antibodies,
+                                  values_to = "counts",
+                                  names_to = "HashAB") %>%
+  group_by(HashAB) %>%
+  dplyr::summarize(sum = sum(counts)) %>%
+  ungroup() %>%
+  ggplot(aes(x = HashAB, y = sum, fill = HashAB)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Hash counts in run 1") +
+  ylab("# cells")
+
+hash_counts[[1]] %>% pivot_longer(cols = hash_antibodies,
+                                  values_to = "counts",
+                                  names_to = "HashAB") %>%
+  group_by(hash_classification, HashAB) %>%
+  dplyr::summarize(sum = sum(counts)) %>%
+  ungroup() %>%
+  pivot_wider(values_from = sum,
+              names_from = HashAB) %>%
+  pheat()
+
+```
+
+Run 2
+
+```{r, message = F, warning = F}
+
+hash_counts[[2]] %>% pivot_longer(cols = hash_antibodies,
+                                  values_to = "counts",
+                                  names_to = "HashAB") %>%
+  group_by(HashAB) %>%
+  dplyr::summarize(sum = sum(counts)) %>%
+  ungroup() %>%
+  ggplot(aes(x = HashAB, y = sum, fill = HashAB)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Hash counts in run 2") +
+  ylab("# cells")
+
+hash_counts[[2]] %>% pivot_longer(cols = hash_antibodies,
+                                  values_to = "counts",
+                                  names_to = "HashAB") %>%
+  group_by(hash_classification, HashAB) %>%
+  dplyr::summarize(sum = sum(counts)) %>%
+  ungroup() %>%
+  pivot_wider(values_from = sum,
+              names_from = HashAB) %>%
+  pheat()
+```
+
+Singlets and doublets in the combined data.
+
+```{r, message = F, warning = F}
+# Merging for plotting
+seurat_merged <- merge(x = seurat_list[[1]], y = seurat_list[[2]])
+
+# Singlets/doublets
+table(seurat_merged$Hash_classification.global) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Hash classification for both runs") +
+  ylab("# cells") +
+  NoLegend()
+
+table(seurat_merged$Hash_maxID) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Hash classification for both runs") +
+  ylab("# cells") +
+  NoLegend()
+
+seurat_list <- lapply(seurat_list, function(xx){
+  xx@meta.data$cellname <- colnames(xx)
+  
+  xx
+})
+
+```
+
+Filtering to retain singlets
+
+```{r, message = F, warning = F}
+
+# Filtering to retain singlets
+seurat_singlets_list <- lapply(seurat_list, function(xx){
+  xx <- subset(xx, subset = Hash_classification.global == "Singlet")
+  
+  xx
+})
+names(seurat_singlets_list) <- names(seurat_list)
+
+# Merging for plotting
+seurat_merged <- merge(x = seurat_list[[1]], y = seurat_list[[2]])
+
+# Plotting
+table(seurat_merged$Sample_Name) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Sample") +
+  ylab("# singets")
+
+table(seurat_merged$Run) %>% as.data.frame() %>%
+  ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(position="dodge", stat="identity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab("Run") +
+  ylab("# singlets")
+
+```
+
+### SoupX for ambient RNA
+
+```{r, message = F, warning = F}
+
+# Saving demultiplexed data in 10x format
+for (i in 1:length(seurat_singlets_list)){
+  print(paste0("Converting sample ", names(seurat_singlets_list[i])))
+  obj.sub <- seurat_singlets_list[[i]] 
+  
+  counts <- LayerData(obj.sub, assay = "RNA", layer = "counts")
+  DropletUtils::write10xCounts(path = paste0("/scratch/hnatri/CART/SoupX/demultiplexed_", names(seurat_singlets_list[i])), 
+                               x = counts, 
+                               barcodes = colnames(counts), # cell names
+                               gene.id = rownames(counts), # Gene identifiers, one per row of X
+                               type = "sparse", version="3", overwrite = T)
+}
+
+# Running SoupX
+seurat_soupx_list <- sapply(names(seurat_singlets_list), function(xx){
+  print(xx)
+
+  # Read in count and droplet data
+  # Converted demultiplexed counts
+  message("Reading converted demultiplexed counts")
+  d10x_toc <- Read10X(paste0("/scratch/hnatri/CART/SoupX/demultiplexed_", xx))
+  
+  #batch_id <- seurat_singlets_list[[xx]]$Run
+  
+  # Need to read in batch specific empty droplet file
+  message("Reading empty droplet data")
+  d10x_tod <- Read10X(paste0(path_list[[xx]], "/outs/raw_feature_bc_matrix/"))
+  
+  if(length(names(d10x_tod))>1){
+    d10x_tod_gex <- d10x_tod[[1]]
+  } else {
+    d10x_tod_gex <- d10x_tod
+  }
+  
+  colnames(d10x_tod_gex) <- paste0(xx, "_", colnames(d10x_tod_gex))
+  
+  # Some batches only have features that are expressed in at least one cell;
+  # need to fix feature order
+  #rownames(d10x_toc) <- gsub("_", "-", rownames(d10x_toc))
+  #rownames(d10x_tod_gex) <- gsub("_", "-", rownames(d10x_tod_gex))
+  d10x_tod_gex <- d10x_tod_gex[rownames(d10x_toc),]
+  
+  # Run SoupX
+  sc <- SoupChannel(d10x_tod_gex, d10x_toc, calcSoupProfile = FALSE) 
+  
+  sc <- estimateSoup(sc)
+  toc_seu <- CreateSeuratObject(d10x_toc)
+  toc_seu <- SCTransform(toc_seu, vst.flavor = "v2")
+  if(ncol(toc_seu)<50){
+    toc_seu <- RunPCA(toc_seu, npcs = ncol(toc_seu)-1)
+  } else{
+    toc_seu <- RunPCA(toc_seu)
+  }
+  toc_seu <- RunUMAP(toc_seu, dims = 1:15)
+  toc_seu <- FindNeighbors(toc_seu, dims = 1:15)
+  toc_seu <- FindClusters(toc_seu, resolution = 1)
+
+  # Add meta data to soupX object
+  sc <- setClusters(sc, setNames(toc_seu$seurat_clusters, rownames(toc_seu@meta.data)))
+  # Estimate contamination (automated method)
+  message(paste0("Getting autoEstCont for: ", i))
+  sc <- autoEstCont(sc, tfidfMin = 0.6, soupQuantile = 0.7, forceAccept = TRUE, doPlot = F) 
+  out <- adjustCounts(sc)
+  
+  # Create Seurat object using corrected data
+  d10x_seu <- CreateSeuratObject(out, assay = "SoupX_RNA")
+  d10x_seu[["RNA"]] <- toc_seu@assays[["RNA"]]
+  d10x_seu <- PercentageFeatureSet(d10x_seu, pattern = "^MT-", col.name = "percent.mt_RNA", assay = "RNA")
+  d10x_seu <- PercentageFeatureSet(d10x_seu, pattern = "^RP[SL]|^MRP[SL]", col.name = "percent.ribo_RNA", assay = "RNA")
+  d10x_seu <- PercentageFeatureSet(d10x_seu, pattern = "^MT-", col.name = "percent.mt_SoupX_RNA", assay = "SoupX_RNA")
+  d10x_seu <- PercentageFeatureSet(d10x_seu, pattern = "^RP[SL]|^MRP[SL]", col.name = "percent.ribo_SoupX_RNA", assay = "SoupX_RNA")
+  
+  # Add sample metadata
+  d10x_seu$Sample <- paste0(sapply(strsplit(colnames(d10x_seu), "_"), `[`, 1), "_",
+                            sapply(strsplit(colnames(d10x_seu), "_"), `[`, 2))
+  
+
+  d10x_seu$Day <-paste0(sapply(strsplit(colnames(d10x_seu), "_"), `[`, 2))
+  d10x_seu$Sample_Type <- paste0(sapply(strsplit(colnames(d10x_seu), "_"), `[`, 1))
+  d10x_seu$cellname <- colnames(d10x_seu)
+  d10x_seu$Run <- xx
+  
+  d10x_seu <- RenameCells(d10x_seu,
+                          new.names = paste0(xx,"_", colnames(d10x_seu)))
+  
+  d10x_seu
+})
+
+names(seurat_soupx_list) <- names(seurat_singlets_list)
+
+# Merge
+seurat_merged <- merge(x = seurat_soupx_list[[1]], y = seurat_soupx_list[[2]])
+
+#saveRDS(seurat_merged, "/scratch/hnatri/CART/SoupX/seurat_merged.rds")
+
+```
+
+### QC and filtering
+
+```{r, message = F, warning = F}
+
+par(mfrow=c(2,3))
+
+# PLOTS 1 & 2: nCount vs. nFeature
+smoothScatter(log2(seurat_merged$nCount_SoupX_RNA), log2(seurat_merged$nCount_SoupX_RNA),
+              xlab = "log2(nCount_SoupX_RNA)", ylab = "log2(nFeature_SoupX_RNA)")
+
+smoothScatter(seurat_merged$nCount_SoupX_RNA, seurat_merged$nCount_SoupX_RNA,
+              xlab = "nCount_SoupX_RNA", ylab = "nFeature_SoupX_RNA")
+
+# PLOTS 3 & 4: nCount vs. percent.mt_RNA
+smoothScatter(seurat_merged$percent.mt_SoupX_RNA, log2(seurat_merged$nCount_SoupX_RNA),
+              xlab = "% MT", ylab = "log2(nCount_SoupX_RNA)")
+
+smoothScatter(seurat_merged$percent.mt_SoupX_RNA, seurat_merged$nCount_SoupX_RNA,
+              xlab = "% MT", ylab = "nCount_SoupX_RNA")
+abline(v = 10, h = 1000, 
+       lty = "dashed", lwd = 1.25, col = "red")
+
+# PLOTS 5 & 6: nFeature vs. percent.mt_RNA
+smoothScatter(seurat_merged$percent.mt_SoupX_RNA, log2(seurat_merged$nFeature_SoupX_RNA),
+              xlab = "% MT", ylab = "log2(nFeature_RNA)")
+
+smoothScatter(seurat_merged$percent.mt_SoupX_RNA, seurat_merged$nFeature_SoupX_RNA,
+              xlab = "% MT", ylab = "nFeature_RNA")
+abline(v = 10, h = 500, 
+       lty = "dashed", lwd = 1.25, col = "red")
+
+seurat_filtered <- subset(seurat_merged, subset = percent.mt_SoupX_RNA < 10 &
+                            nFeature_SoupX_RNA > 500 & nCount_SoupX_RNA >1000)
+
+saveRDS(seurat_filtered, "/scratch/hnatri/CART/19130_CARprod_filtered.rds")
+
+```
+
+
