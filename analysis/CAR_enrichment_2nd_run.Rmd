@@ -1,0 +1,209 @@
+---
+title: "Inspecting CAR enrichment"
+author: "heinin"
+date: "2024-07-12"
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Checking numbers of reads mapping to the construct
+
+### Libraries and environment variables
+```{r, message = F, warning = F}
+
+library(workflowr)
+library(Seurat)
+library(googlesheets4)
+library(tidyverse)
+library(plyr)
+library(SoupX)
+library(pheatbuilder)
+
+setwd("/home/hnatri/19130_CAR_production/")
+set.seed(1234)
+options(future.globals.maxSize = 30000 * 1024^2)
+reduction <- "umap"
+
+source("/home/hnatri/SingleCellBestPractices/scripts/preprocessing_qc_module.R")
+
+```
+
+### Import data
+```{r, message = F, warning = F}
+
+#seurat_list <- readRDS("/scratch/hnatri/CART/19130_CARprod_Seurat_list_filtered.rds")
+seurat_list <- readRDS("/scratch/hnatri/CART/19130_CARprod_Seurat_list_filtered_0.99999.rds")
+
+names(seurat_list) <- c("run1", "run2")
+names(seurat_list)
+head(seurat_list[[1]]@meta.data)
+
+seurat_list <- lapply(names(seurat_list), function(xx){
+  obj <- seurat_list[[xx]]
+  obj$FID <- xx
+  
+  obj
+})
+
+seurat_object <- merge(x = seurat_list[[1]], y = seurat_list[[2]])
+#seurat_object <- JoinLayers(seurat_object, assay = "SoupX_RNA")
+seurat_object <- JoinLayers(seurat_object, assay = "RNA")
+
+rm(seurat_list)
+
+seurat_object$FID <- ifelse(seurat_object$FID == "run1", "F07656", "F07657")
+table(seurat_object$HTO_classification.global)
+
+```
+
+### Plot CAR counts
+```{r, message = F, warning = F, fig.height = 4}
+
+# What % of the library mapped to the construct?
+#seurat_object <- merge(x = seurat_list[[1]], y = seurat_list[1:length(seurat_list)])
+#seurat_object <- JoinLayers(seurat_object, assay = "RNA")
+
+#head(seurat_object@meta.data)
+#seurat_object$Sample_Type2 <- sapply(strsplit(rownames(seurat_object@meta.data), split='_', fixed=TRUE), `[`, 1)
+#seurat_object$Day <- sapply(strsplit(rownames(seurat_object@meta.data), split='_', fixed=TRUE), `[`, 2)
+#seurat_object$Run <- sapply(strsplit(rownames(seurat_object@meta.data), split='_', fixed=TRUE), `[`, 3)
+
+unique(seurat_object$FID)
+
+# Singlets/doublets
+unique(seurat_object$HTO_classification.global)
+table(seurat_object$HTO_classification.global)
+table(seurat_object$HTO_classification)
+table(seurat_object$HTO_classification.global,
+      seurat_object$FID)
+
+table(seurat_object$HTO_classification) %>% as.data.frame() %>%
+  ggplot(aes(y = reorder(Var1, -Freq), x = Freq)) +
+  geom_bar(stat = "identity") +
+  theme_bw()
+
+table(seurat_object$HTO_classification.global) %>% as.data.frame() %>%
+  ggplot(aes(y = reorder(Var1, -Freq), x = Freq)) +
+  geom_bar(stat = "identity") +
+  theme_bw()
+
+# CAR counts by HTO classification
+plot_data_1 <- as.data.frame(list("FID" = seurat_object$FID,
+                                  "HTO" = seurat_object$HTO_classification.global,
+                                  "CART" = seurat_object@assays$RNA$counts["IL13OP",],
+                                  "counts" = colSums(seurat_object@assays$RNA$counts)))
+
+plot_data_1 %>%
+  #group_by(FID) %>%
+  dplyr::summarise(CAR_counts = sum(CART),
+                   libsize = sum(counts),
+                   prop_CAR = (CAR_counts/libsize)*100) %>%
+  ungroup()
+
+# The name of the construct is "IL13OP"
+#layer_data <- LayerData(seurat_object,
+#                        assay = "SoupX_RNA",
+#                        layer = "counts")
+#layer_data <- as.data.frame(t(layer_data))
+#
+#range(layer_data[,"IL13OP"])
+#range(layer_data)
+
+layer_data_RNA <- LayerData(seurat_object,
+                        assay = "RNA",
+                        layer = "counts")
+layer_data_RNA <- as.data.frame(t(layer_data_RNA))
+
+range(layer_data_RNA[,"IL13OP"])
+#range(layer_data_RNA)
+
+layer_data <- layer_data_RNA
+layer_data$FID <- seurat_object$FID
+
+
+p1 <- layer_data %>% ggplot(aes(x = IL13OP)) +
+  geom_histogram() +
+  theme_classic()
+
+p2 <- layer_data %>% ggplot(aes(x = log2(IL13OP))) +
+  geom_histogram() +
+  theme_classic()
+
+p1 + p2
+
+# What % of the library mapped to the construct?
+tail(colnames(layer_data))
+
+layer_data %>%
+  dplyr::mutate(sum = rowSums(across(1:(ncol(layer_data)-1)))) %>%
+  #group_by(FID) %>%
+  dplyr::summarise(CAR_counts = sum(IL13OP),
+                   lib_size = sum(sum),
+                   pct_CAR = (CAR_counts/lib_size)*100) %>%
+  ungroup()
+
+layer_data_sum <- layer_data %>%
+  dplyr::mutate(sum = rowSums(across(1:(ncol(layer_data)))))
+
+layer_data_sum[1:10, (ncol(layer_data_sum)-10):ncol(layer_data_sum)]
+
+# What % of cells reach a threshold for CAR reads?
+table(layer_data$FID)
+nrow(layer_data)
+layer_data %>% group_by(FID) %>% filter(`IL13OP` >= 1) %>% dplyr::summarise(nrow = n())
+layer_data %>% group_by(FID) %>% filter(`IL13OP` >= 2) %>% dplyr::summarise(nrow = n())
+layer_data %>% group_by(FID) %>% filter(`IL13OP` >= 3) %>% dplyr::summarise(nrow = n())
+
+```
+
+### Plotting by sample type and CAR proportion
+```{r, message = F, warning = F, fig.height = 4}
+
+# Metadata
+# https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing
+gs4_deauth()
+production_samples  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
+production_samples <- read_sheet(production_samples, sheet = "CAR positivity")
+
+layer_data$Run <- seurat_object$Run
+layer_data$Sample_Type <- seurat_object$Sample_Type
+layer_data$Day <- seurat_object$Day
+#layer_data <- layer_data %>%
+#  rownames_to_column(var = "cellname") %>%
+#  separate(cellname, c("Run", "Sample_Type", "Day", "Batch", "Cell_Barcode")) %>%
+#  dplyr::select(c("Run", "Sample_Type", "Day", "Batch", "Cell_Barcode", "IL13OP"))
+
+layer_data %>% filter(IL13OP >= 2,
+                      Sample_Type == "Mock") %>% nrow()
+layer_data %>% filter(IL13OP >= 2,
+                      Sample_Type == "CAR") %>% nrow()
+
+layer_data %>% ggplot(aes(x = IL13OP)) +
+  facet_wrap(~Sample_Type) +
+  geom_histogram() +
+  theme_classic()
+
+layer_data %>% ggplot(aes(x = IL13OP)) +
+  facet_wrap(~Sample_Type + Day) +
+  geom_histogram() +
+  theme_classic()
+
+# Log-counts
+layer_data %>% ggplot(aes(x = log2(IL13OP))) +
+  facet_wrap(~Sample_Type) +
+  geom_histogram() +
+  theme_classic()
+
+layer_data %>% ggplot(aes(x = log2(IL13OP))) +
+  facet_wrap(~Sample_Type + Day) +
+  geom_histogram() +
+  theme_classic()
+
+
+```
+
+

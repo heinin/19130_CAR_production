@@ -1,0 +1,178 @@
+---
+title: "Processing 10x data"
+author: "heinin"
+date: "2024-10-24"
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Processing 10x data
+
+### Libraries and environment variables
+
+```{r, message = F, warning = F}
+
+library(workflowr)
+library(Seurat)
+library(googlesheets4)
+library(tidyverse)
+library(plyr)
+library(SoupX)
+library(pheatbuilder)
+
+setwd("/home/hnatri/19130_CAR_production/")
+set.seed(1234)
+options(future.globals.maxSize = 30000 * 1024^2)
+reduction <- "umap"
+
+source("/home/hnatri/SingleCellBestPractices/scripts/preprocessing_qc_module.R")
+
+```
+
+### Import 10x data
+
+```{r, message = F, warning = F}
+
+# Metadata
+# https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing
+gs4_deauth()
+production_samples  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
+#sheet_names(production_samples)
+production_samples <- read_sheet(production_samples, sheet = "Samples solo")
+
+production_samples$Sample_Name <- paste0(production_samples$Sample_Type, "_",
+                                         production_samples$Day)
+
+```
+
+```{r, message = F, warning = F, eval = F}
+
+# Creating the Seurat list
+seurat_list <- prep_seurat_list(metadata = production_samples,
+                                batch_ID = "Sample_Name",
+                                cellRanger_path = "CellRanger_path",
+                                cell_ID_prefix = "Sample_Name",
+                                run_soupX = T)
+
+saveRDS(seurat_list, "/scratch/hnatri/CART/seurat_list.rds")
+
+# Merging
+seurat_object <- merge(x = seurat_list[[1]], y = seurat_list[2:length(seurat_list)])
+seurat_object <- JoinLayers(seurat_object, assay = "RNA")
+
+saveRDS(seurat_object, "/scratch/hnatri/CART/SoupX/seurat_object.rds")
+
+
+```
+
+### Reads mapping to the construct
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 4}
+
+seurat_list <- readRDS("/scratch/hnatri/CART/seurat_list.rds")
+seurat_object <- readRDS("/scratch/hnatri/CART/SoupX/seurat_object.rds")
+
+table(seurat_object$Sample_Name)
+
+# CAR counts by sample
+plot_data_1 <- as.data.frame(list("Sample_Name" = seurat_object$Sample_Name,
+                                  "CART" = seurat_object@assays$RNA$counts["IL13OP",],
+                                  "counts" = colSums(seurat_object@assays$RNA$counts)))
+
+plot_data_1 %>%
+  group_by(Sample_Name) %>%
+  dplyr::summarise(CAR_counts = sum(CART),
+                   libsize = sum(counts),
+                   prop_CAR = (CAR_counts/libsize)*100) %>%
+  ungroup()
+
+# The name of the construct is "IL13OP"
+layer_data <- LayerData(seurat_object,
+                        assay = "RNA",
+                        layer = "counts")
+layer_data <- as.data.frame(t(layer_data))
+
+range(layer_data[,"IL13OP"])
+range(layer_data)
+
+p1 <- layer_data %>% ggplot(aes(x = IL13OP)) +
+  geom_histogram() +
+  theme_classic()
+
+p2 <- layer_data %>% ggplot(aes(x = log2(IL13OP))) +
+  geom_histogram() +
+  theme_classic()
+
+p1 + p2
+
+# What % of the library mapped to the construct?
+layer_data %>%
+  dplyr::mutate(sum = rowSums(across(1:(ncol(layer_data))))) %>%
+  dplyr::summarise(CAR_counts = sum(IL13OP),
+                   lib_size = sum(sum),
+                   pct_CAR = (CAR_counts/lib_size)*100) %>%
+  ungroup()
+
+layer_data_sum <- layer_data %>%
+  dplyr::mutate(sum = rowSums(across(1:(ncol(layer_data)))))
+
+```
+
+### QC and filtering
+
+```{r, message = F, warning = F, eval = T}
+
+#seurat_object <- readRDS("/scratch/hnatri/CART/SoupX/seurat_object.rds")
+
+par(mfrow=c(2,3))
+
+# PLOTS 1 & 2: nCount vs. nFeature
+smoothScatter(log2(seurat_object$nCount_RNA), log2(seurat_object$nCount_RNA),
+              xlab = "log2(nCount_RNA)", ylab = "log2(nFeature_RNA)")
+
+smoothScatter(seurat_object$nCount_RNA, seurat_object$nCount_RNA,
+              xlab = "nCount_RNA", ylab = "nFeature_RNA")
+
+# PLOTS 3 & 4: nCount vs. percent.mt_RNA
+smoothScatter(seurat_object$percent.mt_RNA, log2(seurat_object$nCount_RNA),
+              xlab = "% MT", ylab = "log2(nCount_RNA)")
+
+smoothScatter(seurat_object$percent.mt_RNA, seurat_object$nCount_RNA,
+              xlab = "% MT", ylab = "nCount_RNA")
+abline(v = 10, h = 1000, 
+       lty = "dashed", lwd = 1.25, col = "red")
+
+# PLOTS 5 & 6: nFeature vs. percent.mt_RNA
+smoothScatter(seurat_object$percent.mt_RNA, log2(seurat_object$nFeature_RNA),
+              xlab = "% MT", ylab = "log2(nFeature_RNA)")
+
+smoothScatter(seurat_object$percent.mt_RNA, seurat_object$nFeature_RNA,
+              xlab = "% MT", ylab = "nFeature_RNA")
+abline(v = 10, h = 500, 
+       lty = "dashed", lwd = 1.25, col = "red")
+
+#seurat_list <- readRDS("/scratch/hnatri/CART/seurat_list.rds")
+
+seurat_list <- filter_manual_mt_rb_genes(sample_seurat_list = seurat_list,
+                                         pt_mt = 10,
+                                         nFeature = 500,
+                                         nCount = 1000)
+
+#saveRDS(seurat_list, "/scratch/hnatri/CART/19130_CARprod_seurat_list_filtered.rds")
+#seurat_list <- readRDS("/scratch/hnatri/CART/19130_CARprod_seurat_list_filtered.rds")
+
+# Adding cell cycle scores
+seurat_list <- add_cell_cycle_score(seurat_list,
+                                    assay = "RNA")
+
+#saveRDS(seurat_list, "/scratch/hnatri/CART/19130_CARprod_seurat_list_filtered.rds")
+
+# To build on command line, run Rscript -e "rmarkdown::render('/home/hnatri/19130_CAR_production/analysis/process_10x_Run3.Rmd')"
+# Then "mv *.html /home/hnatri/19130_CAR_production/docs/"
+
+```
+

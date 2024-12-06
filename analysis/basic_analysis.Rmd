@@ -1,0 +1,498 @@
+---
+title: "Cell phenotypes across samples and timepoints"
+author: "heinin"
+date: "2024-11-21"
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Cell type abundance, gene expression, and pathway enrichment across and between samples
+
+### Libraries and environment variables
+
+```{r, message = F, warning = F, results = 'hide'}
+
+library(workflowr)
+library(Seurat)
+library(googlesheets4)
+library(tidyverse)
+library(plyr)
+library(UpSetR)
+library(ggrepel)
+library(kableExtra)
+library(enrichR)
+library(patchwork)
+
+setwd("/home/hnatri/19130_CAR_production/")
+set.seed(1234)
+options(future.globals.maxSize = 30000 * 1024^2)
+reduction <- "INTEGRATEDSCTUMAP"
+
+source("/home/hnatri/19130_CAR_production/code/CART_plot_functions.R")
+source("/home/hnatri/19130_CAR_production/code/colors_themes.R")
+
+# Cluster annotations
+gs4_deauth()
+cluster_annot  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
+cluster_annot <- read_sheet(cluster_annot, sheet = "Cluster annotations")
+head(cluster_annot)
+
+```
+
+### Import data
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide', eval = F}
+
+# Integrated data
+integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_ProjecTILs.rds")
+integrated_seurat$cluster <- integrated_seurat$integratedSCTsnn_res.1
+
+# Adding annotations
+integrated_seurat$annot <- mapvalues(x = integrated_seurat$cluster,
+                                     from = cluster_annot$integratedSCTsnn_res.1,
+                                     to = cluster_annot$cluster_name)
+
+# Merging layers
+integrated_seurat <- JoinLayers(integrated_seurat)
+integrated_seurat <- NormalizeData(integrated_seurat)
+integrated_seurat <- ScaleData(integrated_seurat)
+
+# Adding TCR data
+combined_tcr <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_VDJ_data.rds")
+#combined_tcr_df <- do.call("rbind", combined_tcr)
+
+# Renaming and downgrading assays from v5 to v3 for sce conversion
+integrated_seurat[["RNA"]] <- as(integrated_seurat[["RNA"]], Class="Assay")
+integrated_seurat[["SoupX_RNA"]] <- as(integrated_seurat[["SoupX_RNA"]], Class="Assay")
+
+integrated_seurat[["SoupXRNA"]] = integrated_seurat[["SoupX_RNA"]]
+integrated_seurat[["SoupX_RNA"]] <- NULL
+
+# Converting Seurat to sce
+sce <- as.SingleCellExperiment(integrated_seurat,
+                               assay = "RNA")
+
+# Adding TCR info to the object
+sce <- scRepertoire::combineExpression(combined_tcr,
+                                       sce,
+                                       cloneCall = "gene",
+                                       group.by = "sample",
+                                       proportion = FALSE,
+                                       cloneSize = c(Single = 1,
+                                                     Small = 5,
+                                                     Medium = 20,
+                                                     Large = 100,
+                                                     Hyperexpanded = 500))
+
+# Converting to Seurat
+integrated_seurat <- as.Seurat(sce,
+                               counts = "counts",
+                               data = "logcounts")
+
+#saveRDS(integrated_seurat, "/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
+
+```
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide'}
+
+integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
+
+```
+
+### Sample types
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 5}
+
+df <- data.frame("Day" = c(0, 1, 4, 7, 14),
+                 "Step" = c("Thaw",
+                            "Post bead stim",
+                            "Post virus",
+                            "Post bead removal",
+                            "Freezedown"))
+
+df %>%
+  kbl() %>%
+  kable_styling()
+
+```
+
+### CAR positivity
+
+Numbers of reads (log-normalized) mapping to the IL13Ra2 CAR construct
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 4, results = 'hide'}
+
+DimPlot(integrated_seurat,
+        group.by = "annot",
+        cols = product_celltype_col,
+        reduction = reduction,
+        label = T,
+        label.box = T,
+        label.size = 3,
+        repel = T,
+        raster = T,
+        raster.dpi = c(1024, 1024),
+        pt.size = 3) +
+  ggtitle("Cell type") +
+  theme_classic() +
+  NoLegend() +
+  NoAxes() +
+  coord_fixed(1)
+
+FeaturePlot(integrated_seurat,
+            features = c("IL13OP"),
+            slot = "data",
+            cols = c("gray89", "tomato3"),
+            order = T,
+            ncol = 1,
+            raster = T,
+            raster.dpi = c(2048, 1024),
+            pt.size = 4) &
+  coord_fixed(ratio = 1) &
+  theme_classic()
+
+```
+
+Expression by cell type
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 4, results = 'hide'}
+
+VlnPlot(integrated_seurat,
+        features = c("IL13OP"),
+        group.by = "annot",
+        cols = product_celltype_col,
+        pt.size = 0) &
+  theme_classic() +
+  NoLegend() +
+  RotatedAxis()
+
+```
+
+### Cell numbers
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 4, results = 'hide'}
+
+table(integrated_seurat$Sample_Name) %>%
+  as.data.frame() %>%
+  ggplot(aes(x = reorder(Var1, -Freq), y = Freq)) + 
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  RotatedAxis() +
+  xlab("# cells")
+
+```
+
+### Cell type proportions
+
+```{r, message = F, warning = F, fig.width = 10, fig.height = 5, results = 'hide'}
+
+# seurat_object = Seurat object
+# plot_var = e.g. cluster
+# group_var = e.g. response (cell proportions are plotted for each group)
+# group_levels = a vector for ordering the grouping variable levels
+# plot_levels = a vector for ordering the plot variable levels
+# plot_colors = A named vector of colors to use in the plot, corresponding to plot_var (e.g. cluster colors)
+# var_names = Used as axis titles, c("plot_var_name", "group_var_name")
+# legend_title = Legend title, ("" for no title)
+
+create_barplot(seurat_object = integrated_seurat,
+               plot_var = "annot",
+               group_var = "Sample_Name",
+               group_levels = unique(integrated_seurat$Sample_Name),
+               plot_levels = sort(unique(integrated_seurat$annot)),
+               plot_colors = product_celltype_col,
+               var_names = c("% cells", "Sample"),
+               legend_title = "Cell type")
+
+```
+
+Pairwise comparisons
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 4, results = 'hide'}
+
+# seurat_object = Seurat object
+# group_var = e.g. CD3_status
+# group1 = e.g. High
+# group2 = e.g. Low
+# plot_var = e.g. celltype
+# plot_colors = A named vector of colors to use in the plot, corresponding to plot_var (e.g. cell type colors)
+# var_names = Used as axis titles, c("group2", "group1")
+# legend_title = Legend title, ("" for no title)
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "Sample_Name",
+                       group1 = "Pre_CAR_1",
+                       group2 = "Pre_CAR_0",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Pre-CAR D1", "Pre-CAR D0"),
+                       legend_title = "Cell type")
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "Sample_Name",
+                       group1 = "CAR_4",
+                       group2 = "Mock_4",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Mock D4", "CAR D4"),
+                       legend_title = "Cell type")
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "Sample_Name",
+                       group1 = "CAR_7",
+                       group2 = "Mock_7",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Mock D7", "CAR D7"),
+                       legend_title = "Cell type")
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "Sample_Name",
+                       group1 = "CAR_14",
+                       group2 = "Mock_14",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Mock D14", "CAR D14"),
+                       legend_title = "Cell type")
+
+```
+
+### DEGs by timepoint/sample
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide'}
+
+Idents(integrated_seurat) <- "Sample_Name"
+celltype_markers <- FindAllMarkers(integrated_seurat,
+                                   assay = "RNA",
+                                   logfc.threshold = 0.5)
+
+```
+
+### GO pathway over-representation testing of top markers for each sample
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 5, results = 'hide'}
+
+dbs <- listEnrichrDbs()
+dbs$libraryName
+
+dbs <- c("GO_Molecular_Function_2023",
+         "GO_Cellular_Component_2023",
+         "GO_Biological_Process_2023")
+
+enrich_list <- lapply(unique(integrated_seurat$Sample_Name), function(xx){
+  message(xx)
+  
+  enrich_input <- celltype_markers %>% filter(cluster == xx,
+                                              p_val_adj < 0.01,
+                                              avg_log2FC > 0.5)
+  
+  enrichr(enrich_input$gene, dbs)
+})
+names(enrich_list) <- unique(integrated_seurat$Sample_Name)
+
+# Ploting top pathways
+plot_list <- lapply(unique(integrated_seurat$Sample_Name), function(xx){
+  message(xx)
+  p1 <- plotEnrich(enrich_list[[xx]][[1]], showTerms = 20, numChar = 40, y = "Count", orderBy = "P.value") +
+  ggtitle(names(enrich_list[[xx]])[1])
+  
+  p2 <- plotEnrich(enrich_list[[xx]][[2]], showTerms = 20, numChar = 40, y = "Count", orderBy = "P.value") +
+  ggtitle(names(enrich_list[[xx]])[2])
+  
+  p3 <- plotEnrich(enrich_list[[xx]][[3]], showTerms = 20, numChar = 40, y = "Count", orderBy = "P.value") +
+  ggtitle(names(enrich_list[[xx]])[3])
+  
+  p1 + p2 + p3 + plot_annotation(title = xx)
+})
+
+#plot_list
+
+```
+
+Top pathways in CAR samples
+
+```{r, message = F, warning = F, fig.width = 12, fig.height = 12, results = 'hide'}
+
+# Ploting top pathways, CAR and BP only
+plot_list <- lapply(setdiff(unique(integrated_seurat$Sample_Name), c("Mock_4", "Mock_7", "Mock_14")), function(xx){
+  message(xx)
+  p3 <- plotEnrich(as.data.frame(enrich_list[[xx]][[3]]), showTerms = 20, numChar = 40, y = "Count", orderBy = "P.value") +
+  ggtitle(xx)
+  
+  p3
+})
+
+head(as.data.frame(enrich_list[["CAR_4"]][[3]]))
+head(as.data.frame(enrich_list[["Mock_7"]][[3]]))
+
+celltype_markers %>% filter(cluster == "CAR_14",
+                            p_val_adj < 0.01,
+                            avg_log2FC > 0.5) %>% dim()
+celltype_markers %>% filter(cluster == "Mock_14",
+                            p_val_adj < 0.01,
+                            avg_log2FC > 0.5) %>% dim()
+
+wrap_plots(plot_list, ncol = 2) + plot_annotation(title = "GO: BP")
+
+```
+
+Plotting enriched pathways in CAR and mock side by side
+
+```{r, message = F, warning = F, fig.width = 12, fig.height = 12, results = 'hide'}
+
+# Potting CAR vs. mock
+plot_list <- lapply(setdiff(unique(integrated_seurat$Sample_Name), c("Pre_CAR_0", "Pre_CAR_1", "5050_CAR_14")), function(xx){
+  message(xx)
+  p3 <- plotEnrich(as.data.frame(enrich_list[[xx]][[3]]), showTerms = 20, numChar = 40, y = "Count", orderBy = "P.value") +
+  ggtitle(xx)
+  
+  p3
+})
+
+names(plot_list) <- setdiff(unique(integrated_seurat$Sample_Name), c("Pre_CAR_0", "Pre_CAR_1", "5050_CAR_14"))
+
+plot_list <- plot_list[c("CAR_4", "Mock_4",
+                         "CAR_7", "Mock_7",
+                         "CAR_14", "Mock_14")]
+
+head(as.data.frame(enrich_list[["CAR_14"]][[3]]))
+head(as.data.frame(enrich_list[["Mock_14"]][[3]]))
+
+wrap_plots(plot_list, ncol = 2) + plot_annotation(title = "GO: BP")
+
+```
+
+### Shared and unique pathways
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5, results = 'hide'}
+
+input_list <- lapply(enrich_list, function(xx){
+  xx[[1]]$Term
+})
+names(input_list) <- names(enrich_list)
+
+upset(fromList(input_list), order.by = "freq", nsets = 9)
+grid.text("GO:MF", x = 0.65, y = 0.95, gp = gpar(fontsize=12))
+
+input_list <- lapply(enrich_list, function(xx){
+  xx[[2]]$Term
+})
+names(input_list) <- names(enrich_list)
+
+upset(fromList(input_list), order.by = "freq", nsets = 9)
+grid.text("GO:CC", x = 0.65, y = 0.95, gp = gpar(fontsize=12))
+
+input_list <- lapply(enrich_list, function(xx){
+  xx[[3]]$Term
+})
+names(input_list) <- names(enrich_list)
+
+upset(fromList(input_list), order.by = "freq", nsets = 9)
+grid.text("GO:BP", x = 0.65, y = 0.95, gp = gpar(fontsize=12))
+
+```
+
+### Non-enriched vs. enriched CAR D14
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 4, results = 'hide'}
+
+integrated_seurat$Sample_Name <- gsub("5050_CAR_14", "nonEnriched_CAR_14",
+                                      integrated_seurat$Sample_Name)
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "Sample_Name",
+                       group2 = "nonEnriched_CAR_14",
+                       group1 = "CAR_14",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Non-enriched CAR D14", "Enriched CAR D14"),
+                       legend_title = "Cell type")
+
+```
+
+### Pre-CAR vs. D14 (freezedown)
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 4, results = 'hide'}
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "Sample_Name",
+                       group1 = "Pre_CAR_0",
+                       group2 = "CAR_14",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Pre-CAR D0", "CAR D14"),
+                       legend_title = "Cell type")
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "Sample_Name",
+                       group1 = "Pre_CAR_1",
+                       group2 = "CAR_14",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Pre-CAR D1", "CAR D14"),
+                       legend_title = "Cell type")
+
+table(integrated_seurat$annot, integrated_seurat$Sample_Name)
+
+```
+
+### Expanded vs. non-expanded clones
+
+```{r, message = F, warning = F, fig.width = 10, fig.height = 5, results = 'hide'}
+
+create_barplot(seurat_object = integrated_seurat,
+               plot_var = "annot",
+               group_var = "cloneSize",
+               group_levels = c("Single (0 < X <= 1)",
+                                "Small (1 < X <= 5)",
+                                "Medium (5 < X <= 20)",
+                                "Large (20 < X <= 100)"),
+               plot_levels = sort(unique(integrated_seurat$annot)),
+               plot_colors = product_celltype_col,
+               var_names = c("% cells", "Sample"),
+               legend_title = "Cell type") + xlab("")
+
+```
+
+Comparing single clones to expanded clones
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 4, results = 'hide'}
+
+integrated_seurat$expanded <- ifelse(integrated_seurat$cloneSize == "Single (0 < X <= 1)", "single",
+                                     ifelse(integrated_seurat$cloneSize %in% c("Small (1 < X <= 5)",
+                                                                               "Medium (5 < X <= 20) ",
+                                                                               "Large (20 < X <= 100)"), "expanded", NA))
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "expanded",
+                       group1 = "single",
+                       group2 = "expanded",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Single", "Expanded (small, medium, large)"),
+                       legend_title = "Cell type")
+
+table(integrated_seurat$expanded, integrated_seurat$annot)
+
+```
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 4, results = 'hide'}
+
+integrated_seurat$expanded <- ifelse(integrated_seurat$cloneSize == "Single (0 < X <= 1)", "single",
+                                     ifelse(integrated_seurat$cloneSize %in% c("Large (20 < X <= 100)"), "expanded", NA))
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = "annot",
+                       group_var = "expanded",
+                       group1 = "single",
+                       group2 = "expanded",
+                       plot_colors = product_celltype_col,
+                       var_names = c("Single", "Expanded (large, >20 copies)"),
+                       legend_title = "Cell type")
+
+```
+

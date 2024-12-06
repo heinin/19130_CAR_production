@@ -1,0 +1,258 @@
+---
+title: "STARTRAC analysis on TCR clones between samples and time points"
+author: "heinin"
+date: "2024-11-12"
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Analyzing TCRs clonality and cell state transitions
+
+### Libraries and environment variables
+
+```{r, message = F, warning = F}
+
+library(workflowr)
+library(Seurat)
+library(googlesheets4)
+library(tidyverse)
+library(plyr)
+library(scRepertoire)
+library(UpSetR)
+library(Startrac)
+library(data.table)
+library(ggpubr)
+
+setwd("/home/hnatri/19130_CAR_production/")
+set.seed(1234)
+options(future.globals.maxSize = 30000 * 1024^2)
+reduction <- "integratedSCTumap"
+
+source("/home/hnatri/19130_CAR_production/code/CART_plot_functions.R")
+source("/home/hnatri/19130_CAR_production/code/colors_themes.R")
+
+# Cluster annotations
+gs4_deauth()
+cluster_annot  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
+cluster_annot <- read_sheet(cluster_annot, sheet = "Cluster annotations")
+
+```
+
+### Helper functions
+
+```{r, message = F, warning = F}
+
+# Modifying the STARTRAC plotting function
+plot <- function(obj,index.type,byPatient)
+{
+  if(index.type=="cluster.all"){
+    if(byPatient){
+      p <- ggboxplot(as.data.table(obj@cluster.sig.data)[aid!=obj@proj,][order(majorCluster),],
+                x="majorCluster",y="value",
+                color = "index", add = "point", outlier.colour=NULL) +
+        facet_wrap(~index,ncol=1,scales = "free_y") +
+        theme(axis.text.x=element_text(angle = 60,hjust = 1))
+    }else{
+      dat.plot <- as.data.table(obj@cluster.sig.data)[aid==obj@proj,]
+      dat.plot$p.value.label <- ""
+      dat.plot$p.value.label[dat.plot$p.value < 0.05] <- "*"
+      dat.plot$p.value.label[dat.plot$p.value < 0.01] <- "**"
+      dat.plot$p.value.label[dat.plot$p.value < 0.001] <- "***"
+      p <- ggbarplot(dat.plot[order(majorCluster),],
+                    x="majorCluster",y="value",palette = "npg",fill = "index") +
+        facet_wrap(~index,ncol=1,scales = "free_y") +
+		coord_cartesian(clip="off") +
+        theme(axis.text.x=element_text(angle = 60,hjust = 1),strip.background = element_blank())
+      if(!all(is.na(dat.plot$p.value))){
+        p <- p + geom_text(aes(label=p.value.label,y=value),size=5)
+      }
+    }
+
+  }else if(index.type=="pairwise.migr"){
+    if(nrow(obj@pIndex.sig.migr)==0){ return(NULL) }
+    if(byPatient){
+      p <- ggboxplot(as.data.table(obj@pIndex.sig.migr)[aid!=obj@proj,][order(majorCluster),],
+                     x="majorCluster", y="value",
+                     color = "index", add = "point", outlier.colour=NULL) +
+        facet_wrap(~index,ncol=1,scales = "free_y") +
+        theme(axis.text.x=element_text(angle = 60,hjust = 1))      
+    }else{
+      dat.plot <- as.data.table(obj@pIndex.sig.migr)[aid==obj@proj,]
+      dat.plot$p.value.label <- ""
+      dat.plot$p.value.label[dat.plot$p.value < 0.05] <- "*"
+      dat.plot$p.value.label[dat.plot$p.value < 0.01] <- "**"
+      dat.plot$p.value.label[dat.plot$p.value < 0.001] <- "***"
+      p <- ggbarplot(dat.plot[order(majorCluster),],
+                x="majorCluster",y="value",fill = "index") +
+        facet_wrap(~index,ncol=1,scales = "free_y") +
+		coord_cartesian(clip="off") +
+        theme(axis.text.x=element_text(angle = 60,hjust = 1),strip.background = element_blank())
+      if(!all(is.na(dat.plot$p.value))){
+        p <- p + geom_text(aes(label=p.value.label,y=value),size=5)
+      }
+    }
+  }else if(index.type=="pairwise.tran"){
+    if(nrow(obj@pIndex.tran)==0){ return(NULL) }
+    ## first 3 columns: aid, NCells, majorCluster
+    dat.plot <- as.matrix(subset(obj@pIndex.tran,aid==obj@proj)[,c(-1,-2,-3)])
+    rownames(dat.plot) <- subset(obj@pIndex.tran,aid==obj@proj)[,3]
+    dat.plot[is.na(dat.plot)] <- 0
+    yrange <- pretty(dat.plot)
+    col.heat <- colorRamp2(seq(0,max(yrange),length=15),
+                           colorRampPalette(rev(brewer.pal(n=7,name="RdBu")))(15),
+                           space = "LAB")
+    p <- Heatmap(dat.plot,name="pIndex.tran",col = col.heat)
+  }
+  return(p)
+}
+
+```
+
+### Import data
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide'}
+
+# Integrated data
+integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_ProjecTILs.rds")
+integrated_seurat$cluster <- integrated_seurat$integratedSCTsnn_res.1
+
+# Adding annotations
+integrated_seurat$annot <- mapvalues(x = integrated_seurat$cluster,
+                                     from = cluster_annot$integratedSCTsnn_res.1,
+                                     to = cluster_annot$cluster_name)
+
+DimPlot(integrated_seurat,
+        group.by = "annot",
+        cols = product_celltype_col,
+        reduction = reduction,
+        label = T,
+        label.box = T,
+        label.size = 3,
+        repel = T,
+        raster = T,
+        raster.dpi = c(1024, 1024),
+        pt.size = 3) +
+  ggtitle("Cell type") +
+  theme_classic() +
+  NoLegend() +
+  NoAxes() +
+  coord_fixed(1)
+
+# TCR data
+combined_tcr <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_VDJ_data.rds")
+combined_tcr_df <- do.call("rbind", combined_tcr)
+
+```
+
+### Constructing the input data for STARTRAC
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide'}
+
+# Cell_Name clone.id (CTgene) patient sampleType majorCluster
+input_data <- combined_tcr_df %>% dplyr::select(c("barcode", "sample", "CTstrict"))
+
+setdiff(input_data$barcode, colnames(integrated_seurat))
+setdiff(colnames(integrated_seurat), input_data$barcode)
+intersect(colnames(integrated_seurat), input_data$barcode)
+
+input_data$majorCluster <- plyr::mapvalues(x = input_data$barcode,
+                                           from = colnames(integrated_seurat),
+                                           to = paste0("C", integrated_seurat$cluster))
+
+input_data <- input_data %>% filter(barcode %in% colnames(integrated_seurat))
+
+input_data$majorCluster <- plyr::mapvalues(x = input_data$majorCluster,
+                                           from = paste0("C", cluster_annot$integratedSCTsnn_res.1),
+                                           to = cluster_annot$cluster_name)
+
+input_data <- input_data %>% filter(barcode %in% colnames(integrated_seurat))
+input_data$loc <- input_data$sample
+colnames(input_data) <- c("Cell_Name", "patient", "clone.id", "majorCluster", "loc")
+input_data$patient <- "NA"
+
+```
+
+### Running the pipeline
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 4, results = 'hide'}
+
+out <- Startrac.run(input_data, proj = "Production", cores = NULL, verbose = F)
+
+```
+
+### Visualizing results
+
+Plotting the indices (expansion, Gini-Simpson index for diversity, migration, transition) by cell type.
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 8}
+
+plot(out, index.type = "cluster.all", byPatient = F)
+
+```
+
+About the migration and transition indices: "Even if T cells with identical TCR clonotypes are present in different tissues or in different development states, logically they could likely derive from a single naive T cell, clonally expanded initially at one location and migrated across tissues, or have undergone state transitions. Based on this principle, we define STARTRAC-migr and STARTRAC-tran to evaluate the extent of tissue migration and state transition of each clonotype, respectively. --- Although both definitions use Shannon entropy for calculation, they are distinct from the measurement of TCR clonality in bulk TCR repertoire sequencing. As described above, the traditional TCR clonality is defined at the sample level; however, STARTRAC-migr and STARTRAC-tran are defined primarily at the clonotype level."
+
+Plotting the transition index in each pairwise combination of cell types.
+
+```{r, message = F, warning = F, fig.width = 9, fig.height = 8}
+
+plot(out, index.type = "pairwise.tran", byPatient = T)
+
+```
+
+### Plotting transitions between CAR samples (not including mock)
+
+```{r, message = F, warning = F, fig.width = 9, fig.height = 8}
+
+CAR_samples <- grep("CAR", input_data$loc, value = T)
+
+input_data_subset <- input_data %>% filter(loc %in% CAR_samples)
+
+```
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 4, results = 'hide'}
+
+out <- Startrac.run(input_data_subset, proj = "Production", cores = NULL, verbose = F)
+
+```
+
+Pairwise transition index
+
+```{r, message = F, warning = F, fig.width = 9, fig.height = 8}
+
+plot(out, index.type = "pairwise.tran", byPatient = T)
+
+```
+
+Pairwise migration index
+
+```{r, message = F, warning = F, fig.width = 9, fig.height = 20}
+
+plot(out, index.type = "pairwise.migr", byPatient = F)
+
+```
+
+### Plotting the migration index between pre-CAR and the end-point (D14) enriched product
+
+```{r, message = F, warning = F, fig.width = 9, fig.height = 8, results = 'hide'}
+
+input_data_subset <- input_data %>% filter(loc %in% c("Pre_CAR_0",
+                                                      "Pre_CAR_1",
+                                                      "CAR_14"))
+
+out <- Startrac.run(input_data_subset, proj = "Production", cores = NULL, verbose = F)
+
+plot(out, index.type = "pairwise.tran", byPatient = T)
+
+```
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 6}
+
+plot(out, index.type = "pairwise.migr", byPatient = F)
+
+```
+

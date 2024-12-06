@@ -1,0 +1,69 @@
+---
+title: "Inspecting CAR enrichment"
+author: "heinin"
+date: "2024-07-12"
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Checking numbers of reads mapping to the construct
+
+### Libraries and environment variables
+```{r, message = F, warning = F}
+
+library(workflowr)
+library(Seurat)
+library(googlesheets4)
+library(tidyverse)
+library(plyr)
+library(SoupX)
+library(pheatbuilder)
+
+setwd("/home/hnatri/19130_CAR_production/")
+set.seed(1234)
+options(future.globals.maxSize = 30000 * 1024^2)
+reduction <- "umap"
+
+source("/home/hnatri/SingleCellBestPractices/scripts/preprocessing_qc_module.R")
+
+```
+
+### Import data
+```{r, message = F, warning = F}
+
+seurat_object <- readRDS("/scratch/hnatri/CART/19130_CARprod_filtered.rds")
+
+```
+
+### Plot CAR counts
+```{r, message = F, warning = F, fig.height = 4}
+
+# The name of the construct is "CLTX-Construct"
+layer_data <- LayerData(seurat_object,
+                        assay = "RNA",
+                        layer = "counts")
+layer_data <- as.data.frame(t(layer_data))
+
+p1 <- layer_data %>% ggplot(aes(x = IL13OP)) +
+  geom_histogram() +
+  theme_classic()
+
+p2 <- layer_data %>% ggplot(aes(x = log2(IL13OP))) +
+  geom_histogram() +
+  theme_classic()
+
+p1 + p2
+
+# What % of CAR library mapped to the construct?
+layer_data %>%
+  dplyr::mutate(sum = rowSums(across(1:(ncol(layer_data)-2)))) %>%
+  dplyr::summarise(CAR_counts = sum(IL13OP),
+                   lib_size = sum(sum),
+                   pct_CAR = (CAR_counts/lib_size)*100) %>%
+  ungroup()
+
+```

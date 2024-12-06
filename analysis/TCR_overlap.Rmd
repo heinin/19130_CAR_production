@@ -1,0 +1,330 @@
+---
+title: "TCR clone overlap between time points"
+author: "heinin"
+date: "2024-11-06"
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Analyzing TCRs overlapping between timepoints
+
+### Libraries and environment variables
+
+```{r, message = F, warning = F}
+
+library(workflowr)
+library(Seurat)
+library(googlesheets4)
+library(tidyverse)
+library(plyr)
+library(scRepertoire)
+library(UpSetR)
+library(ggrepel)
+
+setwd("/home/hnatri/19130_CAR_production/")
+set.seed(1234)
+options(future.globals.maxSize = 30000 * 1024^2)
+reduction <- "integratedSCTumap"
+
+source("/home/hnatri/19130_CAR_production/code/CART_plot_functions.R")
+source("/home/hnatri/19130_CAR_production/code/colors_themes.R")
+
+# Cluster annotations
+gs4_deauth()
+cluster_annot  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
+cluster_annot <- read_sheet(cluster_annot, sheet = "Cluster annotations")
+head(cluster_annot)
+
+```
+
+### Helper functions
+
+```{r}
+
+# From https://gist.github.com/cbare/3948302
+
+overlap <- function(l) {
+  results <- list()
+  
+  # combinations of m elements of list l
+  for (m in seq(along=l)) {
+    
+    # generate and iterate through combinations of length m
+    for (indices in combn(seq(length(l)), m, simplify=FALSE)) {
+      
+      # make name by concatenating the names of the elements
+      # of l that we're intersecting
+      name <- do.call(paste, c(as.list(names(l)[indices]), sep=":"))
+
+      # adding the init=l[indices[1]] parameter helps with the case
+      # where we're only dealing with one set, i==1 and length(indices)==1,
+      # and we want only unique items in that set.
+      # Reduce(intersect, list(c(1,2,3,3))) => c(1,2,3,3)
+      # Reduce(intersect, list(c(1,2,3,3)), init=l[[indices[1]]]) => c(1,2,3)
+      results[[name]] <- Reduce(intersect, l[indices], init=l[[indices[1]]])
+    }
+  }
+  results
+}
+
+```
+
+### Import data
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 4}
+
+# Integrated data
+integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_ProjecTILs.rds")
+integrated_seurat$cluster <- integrated_seurat$integratedSCTsnn_res.1
+
+integrated_seurat$annot <- mapvalues(x = integrated_seurat$cluster,
+                                     from = cluster_annot$integratedSCTsnn_res.1,
+                                     to = cluster_annot$cluster_name)
+# TCR data
+combined_tcr <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_VDJ_data.rds")
+
+DimPlot(integrated_seurat,
+        group.by = "annot",
+        cols = product_celltype_col,
+        reduction = reduction,
+        label = T,
+        label.box = T,
+        label.size = 3,
+        repel = T,
+        raster = T,
+        raster.dpi = c(1024, 1024),
+        pt.size = 3) +
+  ggtitle("Cell type") +
+  theme_classic() +
+  NoLegend() +
+  NoAxes() +
+  coord_fixed(1)
+
+```
+
+### Finding overlaps
+
+scRepertoire can be used to call clonotypes using the CDR3 amino acid/nucleotide sequences, by gene usage, or by the combination of CDR3 nucleotide sequences and genes.
+
+Looking at overlaps of nucleotide sequence (CTnt), amino acid sequence (CTaa), the gene sequence (CTgene), or the combination of the nucleotide and gene sequence (CTstrict).
+
+#### Gene sequence level overlap
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+ctgene_input <- lapply(combined_tcr, function(xx){
+  xx[,"CTgene"]
+})
+names(ctgene_input) <- names(combined_tcr)
+
+upset(fromList(ctgene_input), order.by = "freq", nsets = 9, nintersects = 40)
+
+```
+
+#### Amino acid level
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+ctaa_input <- lapply(combined_tcr, function(xx){
+  xx[,"CTaa"]
+})
+names(ctaa_input) <- names(combined_tcr)
+
+upset(fromList(ctaa_input), order.by = "freq", nsets = 9, nintersects = 40)
+
+```
+
+#### Nucleotide level
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+ctnt_input <- lapply(combined_tcr, function(xx){
+  xx[,"CTnt"]
+})
+names(ctnt_input) <- names(combined_tcr)
+
+upset(fromList(ctnt_input), order.by = "freq", nsets = 9, nintersects = 40)
+
+```
+
+#### Strict (nucleotide and aminoacid) overlap
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+ctstrict_input <- lapply(combined_tcr, function(xx){
+  xx[,"CTstrict"]
+})
+names(ctstrict_input) <- names(combined_tcr)
+
+upset(fromList(ctstrict_input), order.by = "freq", nsets = 9, nintersects = 40)
+
+```
+
+### Tracking TCRs and cell phenotypes
+
+Using the most lenient classification (gene level sequence) and first, looking
+at clones that are present on D0 and D1 and any later timepoint
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+overlaps <- overlap(ctgene_input)
+length(unique(names(overlaps)))
+
+d0_d1_CAR_clones <- grep("Pre_CAR_0:Pre_CAR_1:", names(overlaps), value = T)
+d0_d1_CAR_mock_clones <- grep("Mock", d0_d1_CAR_clones, value = T)
+d0_d1_CAR_only_clones <- d0_d1_CAR_clones[-grep("Mock", d0_d1_CAR_clones)]
+
+d0_d1_CAR_clones_c <- unlist(overlaps[d0_d1_CAR_clones])
+d0_d1_CAR_only_clones_c <- unlist(overlaps[d0_d1_CAR_only_clones])
+
+# Numbers of cells with shared clones in each sample
+combined_tcr_df <- do.call("rbind", combined_tcr)
+
+combined_tcr_df %>% filter(CTgene %in% d0_d1_CAR_clones_c) %>%
+  group_by(sample, CTgene) %>%
+  dplyr::summarize(n = n()) %>%
+  arrange(desc(n))
+
+combined_tcr_df %>% filter(CTgene %in% d0_d1_CAR_clones_c) %>%
+  group_by(sample, CTgene) %>%
+  dplyr::summarize(n = n()) %>%
+  arrange(desc(n)) %>%
+  ggplot(aes(x = n)) +
+  geom_histogram() +
+  theme_bw() +
+  xlab("# cells in a sample") +
+  ylab("# clones shared between samples")
+
+combined_tcr_df %>% filter(CTgene %in% d0_d1_CAR_only_clones_c,
+                           sample %in% c("Pre_CAR_0", "Pre_CAR_1", "CAR_4", "CAR_7", "CAR_14", "5050_CAR_14")) %>%
+  group_by(sample, CTgene) %>%
+  dplyr::summarize(n = n()) %>%
+  arrange(desc(n)) %>%
+  ggplot(aes(x = n)) +
+  geom_histogram() +
+  theme_bw() +
+  xlab("# cells in a sample") +
+  ylab("# clones shared between samples") +
+  ggtitle("CAR only, without mock")
+  
+```
+
+Phenotypes of expanded clones
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+#create_barplot(seurat_object = integrated_seurat,
+#                          plot_var = "annot",
+#                          group_var = "Sample_Name",
+#                          group_levels = unique(integrated_seurat$Sample_Name),
+#                          plot_levels = sort(unique(integrated_seurat$annot)),
+#                          plot_colors = product_celltype_col,
+#                          var_names = c("% cells", "Sample"),
+#                          legend_title = "Cell type")
+
+```
+
+Phenotypes of clones trackable across multiple timepoints
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+integrated_seurat$CTgene <- mapvalues(x = colnames(integrated_seurat),
+                                     from = combined_tcr_df$barcode,
+                                     to = combined_tcr_df$CTgene)
+
+integrated_seurat$multitimepoint <- ifelse(integrated_seurat$CTgene %in% d0_d1_CAR_clones_c,
+                                           "Y", "N")
+integrated_seurat$multitimepoint[-which(colnames(integrated_seurat) %in% d0_d1_CAR_clones_c)] <- NA
+
+create_barplot(seurat_object = integrated_seurat,
+               plot_var = "annot",
+               group_var = "multitimepoint",
+               group_levels = unique(integrated_seurat$multitimepoint),
+               plot_levels = sort(unique(integrated_seurat$annot)),
+               plot_colors = product_celltype_col,
+               var_names = c("% cells", "Multi-timepoint"),
+               legend_title = "Cell type")
+```
+
+### Transcriptional diversity among groups
+
+Variance in gene expression levels in clones trackable across timepoints and all other clones.
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 4}
+
+table(integrated_seurat$multitimepoint)
+
+not_trackable <- integrated_seurat@meta.data %>% filter(multitimepoint == "N")
+not_trackable <- sample(rownames(not_trackable), size = 2980)
+trackable <- integrated_seurat@meta.data %>% filter(multitimepoint == "Y")
+keep <- c(not_trackable, rownames(trackable))
+
+# Count matrices
+integrated_seurat$cellname <- colnames(integrated_seurat)
+
+# AverageExpression or AggregateExpression
+ave_exp_mx <- AverageExpression(subset(integrated_seurat, subset = cellname %in% keep),
+                                  group.by = c("annot", "multitimepoint"),
+                                  assay = "RNA",
+                                  layer = "counts",
+                                  normalization.method = "LogNormalize",
+                                  return.seurat = F)
+ave_exp_mx <- as.data.frame(ave_exp_mx$RNA)
+
+#total_entropy <- -colSums(apply(ave_exp_mx,2,function(x){x*log(x)}), na.rm = TRUE)
+#df_total_entropy <- setNames(ldply(total_entropy, data.frame), c("sample", "df_total_entropy"))
+#
+#head(df_total_entropy)
+vars <- sapply(ave_exp_mx, var) %>% as.data.frame() %>%
+  rownames_to_column(var = "ct_group")
+colnames(vars) <- c("ct_group", "var")
+
+names(product_celltype_col) <- gsub("_", "-", names(product_celltype_col))
+vars %>% mutate(celltype = str_split(ct_group, "_", simplify = TRUE)[, 1],
+                multitimepoint = str_split(ct_group, "_", simplify = TRUE)[, 2]) %>%
+  dplyr::select(c("celltype", "multitimepoint", "var")) %>%
+  pivot_wider(names_from = multitimepoint,
+              values_from = var) %>%
+  ggplot(aes(x = N, y = Y, color = celltype, label = celltype)) +
+  geom_point() + 
+    scale_color_manual(name = "celltype", values = product_celltype_col) + 
+    theme_bw() +
+    xlab("Not trackable") + 
+    ylab("Trackable across timepoints") + 
+    geom_text_repel(size = 2.5) +
+    theme(legend.position = "none") + 
+    geom_abline(intercept = 0, slope = 1, linewidth = 0.5, linetype = "dashed") +
+    theme(panel.background = element_rect(colour = "gray88")) +
+    theme(plot.margin = margin(0.3, 0.3, 0.3,0.3, "cm")) +
+    ggtitle("Variance")
+
+#sapply(ave_exp_mx, sd)
+sds <- sapply(ave_exp_mx, sd) %>% as.data.frame() %>%
+  rownames_to_column(var = "ct_group")
+colnames(sds) <- c("ct_group", "sd")
+
+sds %>% mutate(celltype = str_split(ct_group, "_", simplify = TRUE)[, 1],
+                multitimepoint = str_split(ct_group, "_", simplify = TRUE)[, 2]) %>%
+  dplyr::select(c("celltype", "multitimepoint", "sd")) %>%
+  pivot_wider(names_from = multitimepoint,
+              values_from = sd) %>%
+  ggplot(aes(x = N, y = Y, color = celltype, label = celltype)) +
+  geom_point() + 
+    scale_color_manual(name = "celltype", values = product_celltype_col) + 
+    theme_bw() +
+    xlab("Not trackable") + 
+    ylab("Trackable across timepoints") + 
+    geom_text_repel(size = 2.5) +
+    theme(legend.position = "none") + 
+    geom_abline(intercept = 0, slope = 1, linewidth = 0.5, linetype = "dashed") +
+    theme(panel.background = element_rect(colour = "gray88")) +
+    theme(plot.margin = margin(0.3, 0.3, 0.3,0.3, "cm")) +
+    ggtitle("SD")
+
+```
+
+

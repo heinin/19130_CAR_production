@@ -1,0 +1,150 @@
+---
+title: "VDJ data processing"
+author: "heinin"
+date: "2024-08-21"
+output:
+  workflowr::wflow_html:
+    code_folding: hide
+  html_notebook: default
+editor_options:
+  chunk_output_type: console
+---
+
+## Processing VDJ data for the CAR T production samples
+
+### Libraries and environment variables
+
+```{r, message = F, warning = F}
+
+library(workflowr)
+library(Seurat)
+library(googlesheets4)
+library(tidyverse)
+library(plyr)
+library(scRepertoire)
+
+setwd("/home/hnatri/19130_CAR_production/")
+set.seed(1234)
+options(future.globals.maxSize = 30000 * 1024^2)
+reduction <- "integratedSCTumap"
+
+source("/home/hnatri/19130_CAR_production/code/colors_themes.R")
+
+```
+
+### Import data
+
+```{r, message = F, warning = F, eval = F}
+
+# Integrated data
+integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated.rds")
+
+# Metadata
+gs4_deauth()
+production_samples  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
+#sheet_names(production_samples)
+production_metadata <- read_sheet(production_samples, sheet = "Samples solo")
+production_metadata$Sample_Name <- paste0(production_metadata$Sample_Type, "_",
+                                         production_metadata$Day)
+
+tcr_list <- lapply(production_metadata$Sample_Name, function(xx){
+  tcr_path <- production_metadata %>% filter(Sample_Name == xx) %>%
+    dplyr::select(VDJ_CellRanger_Path) %>%
+    unlist() %>% as.character()
+  tcr_data <- read.csv(paste0(tcr_path, "/outs/filtered_contig_annotations.csv"))
+  tcr_data$sample <- xx
+  #tcr_data$barcode <- paste0(xx, "_", tcr_data$barcode) this is added by combineTCR
+  
+  tcr_data
+})
+
+# Combining TCRs
+combined_tcr <- combineTCR(tcr_list, 
+                           samples = production_metadata$Sample_Name,
+                           removeNA = FALSE, 
+                           removeMulti = FALSE, 
+                           filterMulti = FALSE)
+
+head(combined_tcr[[1]])
+
+length(combined_tcr[[1]]$barcode)
+length(intersect(combined_tcr[[1]]$barcode, colnames(integrated_seurat)))
+
+# Adding TCR data to the Seurat object
+#combined_tcr_df <- do.call("rbind", combined_tcr)
+#for(col in setdiff(colnames(combined_tcr), c("barcode", "sample"))){
+#  integrated_seurat@meta.data[,col] <- mapvalues(x = rownames(integrated_seurat@meta.data),
+#                                                 from = combined_tcr$barcode,
+#                                                 to = combined_tcr[,col])
+#  integrated_seurat@meta.data[,col][-which(rownames(integrated_seurat@meta.data) %in% combined_tcr$barcode)] <- #NA
+#}
+
+#saveRDS(integrated_seurat, "/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
+#saveRDS(combined_tcr, "/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_VDJ_data.rds")
+
+```
+
+### Basic clonality analysis
+
+Clonal homeostasis
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 4}
+
+combined_tcr <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_VDJ_data.rds")
+
+clonalHomeostasis(combined_tcr,
+                  cloneCall = "gene",
+                  group.by = "sample") +
+  RotatedAxis()
+
+```
+
+Clonal overlap
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 4}
+
+clonalOverlap(combined_tcr, 
+              cloneCall = "strict", 
+              method = "morisita") +
+  RotatedAxis()
+
+clonalOverlap(combined_tcr, 
+              cloneCall = "strict", 
+              method = "raw") +
+  RotatedAxis()
+
+```
+
+Clonal comparison
+
+```{r, message = F, warning = F, fig.width = 4, fig.height = 4}
+
+clonalCompare(combined_tcr, 
+              top.clones = 30, 
+              samples = c("Mock_7", "Mock_14"), 
+              cloneCall = "aa", 
+              graph = "alluvial") +
+  NoLegend()
+
+clonalCompare(combined_tcr, 
+              top.clones = 30, 
+              samples = c("CAR_7", "CAR_14"), 
+              cloneCall = "aa", 
+              graph = "alluvial") +
+  NoLegend()
+
+```
+
+### Changes in clonal diversity throughout production
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+```
+
+### Rank and relative frequency of top clonotypes changes throughout production
+
+```{r, message = F, warning = F, fig.width = 8, fig.height = 5}
+
+```
+
+

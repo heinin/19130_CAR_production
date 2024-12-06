@@ -45,12 +45,12 @@ The setup is two runs with the same samples:\
 gs4_deauth()
 production_samples  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
 #sheet_names(production_samples)
-production_samples <- read_sheet(production_samples, sheet = "Samples")
+production_samples <- read_sheet(production_samples, sheet = "Samples original")
 
 # Importing data. Two runs with the same samples.
 # Concated GEX: /tgen_labs/banovich/SingleCell/CellRanger/7_1_0/Projects/BCTCSF/HT/BCTCSF_0130_1_PB_CONCAT_C1_X5HT2_F07344-F07345_CONCAT
-path_list <- list("run1" = unique(production_samples[which(production_samples$Run=="run1"),]$CellRanger_path),
-                  "run2" = unique(production_samples[which(production_samples$Run=="run2"),]$CellRanger_path))
+path_list <- list("run1" = unique(production_samples[which(production_samples$Run=="run1"),]$CellRanger_path1),
+                  "run2" = unique(production_samples[which(production_samples$Run=="run2"),]$CellRanger_path1))
 
 # Cell hashing antibody names
 hash_antibodies <- unique(production_samples$Hash_ID)
@@ -58,20 +58,168 @@ hash_antibodies <- unique(production_samples$Hash_ID)
 # Demultiplexing
 seurat_list <- prep_seurat_list_multiplexed(metadata = production_samples,
                                             batch_ID = "Run",
-                                            cellRanger_path = "CellRanger_path",
+                                            cellRanger_path = "CellRanger_path1",
                                             cell_ID_prefix = "Sample_Name",
                                             CellHashing_Ab = "Hash_ID",
-                                            Hash_Abs = hash_antibodies)
+                                            Hash_Abs = hash_antibodies,
+                                            pos_quant = 0.99)
+```
+
+### Reads mapping to the construct
+
+```{r}
+
+#seurat_list <- readRDS("/scratch/hnatri/CART/19130_CARprod_Seurat_list.rds")
+
+seurat_list <- lapply(names(seurat_list), function(xx){
+  obj <- seurat_list[[xx]]
+  obj$Run <-xx
+  
+  obj
+})
+
+seurat_object <- merge(x = seurat_list[[1]], y = seurat_list[[2]])
+seurat_object <- JoinLayers(seurat_object, assay = "RNA")
+
+head(seurat_object@meta.data)
+#seurat_object$Sample_Type2 <- sapply(strsplit(rownames(seurat_object@meta.data), split='_', fixed=TRUE), `[`, 1)
+#seurat_object$Day <- sapply(strsplit(rownames(seurat_object@meta.data), split='_', fixed=TRUE), `[`, 2)
+
+rm(seurat_list)
+
+# Singlets/doublets
+table(seurat_object$HTO_classification.global)
+table(seurat_object$HTO_classification.global,
+      seurat_object$Sample_Type)
+
+# CAR counts by HTO classification
+plot_data_1 <- as.data.frame(list(#"Sample_Type" = seurat_object$Sample_Type,
+                                  "HTO" = seurat_object$HTO_classification.global,
+                                  "CART" = seurat_object@assays$RNA$counts["IL13OP",],
+                                  "counts" = colSums(seurat_object@assays$RNA$counts)))
+
+plot_data_1 %>%
+  group_by(HTO) %>%
+  dplyr::summarise(CAR_counts = sum(CART),
+                   libsize = sum(counts),
+                   prop_CAR = (CAR_counts/libsize)*100) %>%
+  ungroup()
+
+# The name of the construct is "IL13OP"
+layer_data <- LayerData(seurat_object,
+                        assay = "RNA",
+                        layer = "counts")
+layer_data <- as.data.frame(t(layer_data))
+
+range(layer_data[,"IL13OP"])
+range(layer_data)
+
+p1 <- layer_data %>% ggplot(aes(x = IL13OP)) +
+  geom_histogram() +
+  theme_classic()
+
+p2 <- layer_data %>% ggplot(aes(x = log2(IL13OP))) +
+  geom_histogram() +
+  theme_classic()
+
+p1 + p2
+
+# What % of the library mapped to the construct?
+layer_data %>%
+  dplyr::mutate(sum = rowSums(across(1:(ncol(layer_data))))) %>%
+  dplyr::summarise(CAR_counts = sum(IL13OP),
+                   lib_size = sum(sum),
+                   pct_CAR = (CAR_counts/lib_size)*100) %>%
+  ungroup()
+
+layer_data_sum <- layer_data %>%
+  dplyr::mutate(sum = rowSums(across(1:(ncol(layer_data)))))
+
+layer_data_sum[1:10, (ncol(layer_data_sum)-10):ncol(layer_data_sum)]
+
+```
+
+Without demultiplexing
+
+```{r}
+
+# Importing data
+seurat_list <- lapply(names(path_list), function(i){
+  message(i)
+  sample_10x_data <- Read10X(paste0(path_list[i], "/outs/filtered_feature_bc_matrix/"))
+  seurat_object <- CreateSeuratObject(counts = sample_10x_data$`Gene Expression`)
+  seurat_object <- PercentageFeatureSet(seurat_object, pattern = "^MT-", col.name = "percent.mt_RNA", assay = "RNA")
+  seurat_object <- PercentageFeatureSet(seurat_object, pattern = "^RP[SL]|^MRP[SL]", col.name = "percent.ribo_RNA", assay = "RNA")
+})
+
+names(seurat_list) <- names(path_list)
+
+seurat_object <- merge(x = seurat_list[[1]], y = seurat_list[[2]])
+seurat_object <- JoinLayers(seurat_object, assay = "RNA")
+
+rm(seurat_list)
+
+```
+
+### Plot CAR counts
+
+```{r, message = F, warning = F, fig.height = 4}
+
+# The name of the construct is "IL13OP"
+#layer_data <- LayerData(seurat_object,
+#                        assay = "SoupX_RNA",
+#                        layer = "counts")
+#layer_data <- as.data.frame(t(layer_data))
+#
+#range(layer_data[,"IL13OP"])
+#range(layer_data)
+
+layer_data_RNA <- LayerData(seurat_object,
+                        assay = "RNA",
+                        layer = "counts")
+layer_data_RNA <- as.data.frame(t(layer_data_RNA))
+
+range(layer_data_RNA[,"IL13OP"])
+range(layer_data_RNA)
+
+layer_data <- layer_data_RNA
+
+p1 <- layer_data %>% ggplot(aes(x = IL13OP)) +
+  geom_histogram() +
+  theme_classic()
+
+p2 <- layer_data %>% ggplot(aes(x = log2(IL13OP))) +
+  geom_histogram() +
+  theme_classic()
+
+p1 + p2
+
+# What % of the library mapped to the construct?
+layer_data %>%
+  dplyr::mutate(sum = rowSums(across(1:(ncol(layer_data))))) %>%
+  dplyr::summarise(CAR_counts = sum(IL13OP),
+                   lib_size = sum(sum),
+                   pct_CAR = (CAR_counts/lib_size)*100) %>%
+  ungroup()
+
+layer_data_sum[1:10, (ncol(layer_data_sum)-10):ncol(layer_data_sum)]
+
+# What % of cells reach a threshold for CAR reads?
+nrow(layer_data)
+layer_data %>% filter(`IL13OP` >= 1) %>% nrow()
+layer_data %>% filter(`IL13OP` >= 2) %>% nrow()
+layer_data %>% filter(`IL13OP` >= 3) %>% nrow()
+
 ```
 
 Singlets and doublets for each run.
 
 ```{r, message = F, warning = F, fig.width = 12, fig.height = 8}
 # Singlets/doublets
-table(seurat_list[["run1"]]$Hash_classification.global)
-table(seurat_list[["run2"]]$Hash_classification.global)
+table(seurat_list[["run1"]]$HTO_classification.global)
+table(seurat_list[["run2"]]$HTO_classification.global)
 
-p1 <- table(seurat_list[["run1"]]$Hash_classification.global) %>% as.data.frame() %>%
+p1 <- table(seurat_list[["run1"]]$HTO_classification.global) %>% as.data.frame() %>%
   ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
   geom_bar(position="dodge", stat="identity") +
   theme_minimal() +
@@ -80,7 +228,7 @@ p1 <- table(seurat_list[["run1"]]$Hash_classification.global) %>% as.data.frame(
   ylab("# cells") +
   NoLegend()
 
-p2 <- table(seurat_list[["run1"]]$Hash_maxID) %>% as.data.frame() %>%
+p2 <- table(seurat_list[["run1"]]$HTO_maxID) %>% as.data.frame() %>%
   ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
   geom_bar(position="dodge", stat="identity") +
   theme_minimal() +
@@ -89,7 +237,7 @@ p2 <- table(seurat_list[["run1"]]$Hash_maxID) %>% as.data.frame() %>%
   ylab("# cells") +
   NoLegend()
 
-p3 <- table(seurat_list[["run2"]]$Hash_classification.global) %>% as.data.frame() %>%
+p3 <- table(seurat_list[["run2"]]$HTO_classification.global) %>% as.data.frame() %>%
   ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
   geom_bar(position="dodge", stat="identity") +
   theme_minimal() +
@@ -98,7 +246,7 @@ p3 <- table(seurat_list[["run2"]]$Hash_classification.global) %>% as.data.frame(
   ylab("# cells") +
   NoLegend()
 
-p4 <- table(seurat_list[["run2"]]$Hash_maxID) %>% as.data.frame() %>%
+p4 <- table(seurat_list[["run2"]]$HTO_maxID) %>% as.data.frame() %>%
   ggplot(aes(x = Var1, y = Freq, fill = Var1)) +
   geom_bar(position="dodge", stat="identity") +
   theme_minimal() +
@@ -117,7 +265,7 @@ Plotting HTO counts.
 
 # Plotting HTO counts
 hash_counts <- lapply(seurat_list, function(xx){
-  hash <- LayerData(xx, assay = "Hash", layer = "counts")
+  hash <- LayerData(xx, assay = "HTO", layer = "counts")
   hash <- as.data.frame(t(hash))
   hash$hash_classification <- mapvalues(rownames(hash),
                              from = rownames(xx@meta.data),
