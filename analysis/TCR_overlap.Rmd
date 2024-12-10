@@ -186,28 +186,28 @@ combined_tcr_df <- do.call("rbind", combined_tcr)
 combined_tcr_df %>% filter(CTgene %in% d0_d1_CAR_clones_c) %>%
   group_by(sample, CTgene) %>%
   dplyr::summarize(n = n()) %>%
-  arrange(desc(n))
+  arrange(dplyr::desc(n))
 
 combined_tcr_df %>% filter(CTgene %in% d0_d1_CAR_clones_c) %>%
   group_by(sample, CTgene) %>%
   dplyr::summarize(n = n()) %>%
-  arrange(desc(n)) %>%
+  #arrange(desc(n)) %>%
   ggplot(aes(x = n)) +
   geom_histogram() +
   theme_bw() +
-  xlab("# cells in a sample") +
-  ylab("# clones shared between samples")
+  ylab("# clones overlapping timepoints") +
+  xlab("Clone size in a given sample")
 
 combined_tcr_df %>% filter(CTgene %in% d0_d1_CAR_only_clones_c,
                            sample %in% c("Pre_CAR_0", "Pre_CAR_1", "CAR_4", "CAR_7", "CAR_14", "5050_CAR_14")) %>%
   group_by(sample, CTgene) %>%
   dplyr::summarize(n = n()) %>%
-  arrange(desc(n)) %>%
+  #arrange(desc(n)) %>%
   ggplot(aes(x = n)) +
   geom_histogram() +
   theme_bw() +
-  xlab("# cells in a sample") +
-  ylab("# clones shared between samples") +
+  ylab("# clones overlapping timepoints") +
+  xlab("Clone size in a given sample") +
   ggtitle("CAR only, without mock")
   
 ```
