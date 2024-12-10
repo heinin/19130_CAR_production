@@ -173,7 +173,8 @@ table(integrated_seurat$Sample_Name) %>%
   geom_bar(stat = "identity") +
   theme_minimal() +
   RotatedAxis() +
-  xlab("# cells")
+  xlab("Sample") +
+  ylab("# cells")
 
 ```
 

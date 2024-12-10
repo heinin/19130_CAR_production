@@ -42,9 +42,7 @@ head(cluster_annot)
 # Canonical T cell markers
 gs4_deauth()
 canonical_markers  <- gs4_get("https://docs.google.com/spreadsheets/d/186PIcU3Jb0Xm3IuZgENEChluykvwsK4JnHF8FbeJASA/edit?usp=sharing")
-sheet_names(canonical_markers)
 canonical_markers <- read_sheet(canonical_markers, sheet = "T cells, gene sets")
-head(canonical_markers)
 
 ```
 
@@ -215,7 +213,7 @@ FeaturePlot(integrated_seurat,
 
 ### Top marker expression
 
-```{r, fig.width = 12, fig.height=12}
+```{r, fig.width = 20, fig.height=12}
 
 DefaultAssay(integrated_seurat) <- "RNA"
 
@@ -229,7 +227,7 @@ top_markers <- markers %>% group_by(group) %>% slice_max(order_by = auc, n = 2)
 
 FeaturePlot(integrated_seurat,
             features = top_markers$feature,
-            ncol = 6,
+            ncol = 8,
             reduction = reduction,
             raster = T,
             cols = c("gray89", "tomato3")) &
@@ -323,6 +321,25 @@ DimPlot(integrated_seurat,
   NoLegend() +
   NoAxes() +
   coord_fixed(1)
+
+```
+
+### Selected features
+
+```{r, message = F, warning = F, fig.width = 12, fig.height = 10, results = 'hide'}
+
+# Selected markers for presentation
+selected_markers <- c("CD4", "CD8A", "CD19", "GNLY", "GZMB", "NKG77", "PRF1", "LAG3", "TNFRSF18", "HAVCR2", "TIGIT", "ENTPD1", "IL7R", "IL2RA", "FOXP3", "CCR7", "CD27", "SELL")
+
+FeaturePlot(integrated_seurat,
+            features = selected_markers,
+            ncol = 5,
+            reduction = reduction,
+            raster = T,
+            cols = c("gray89", "tomato3")) &
+  coord_fixed(ratio = 1) &
+  theme_bw() &
+  NoLegend()
 
 ```
 
