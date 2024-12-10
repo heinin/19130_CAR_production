@@ -26,6 +26,7 @@ library(ggrepel)
 library(kableExtra)
 library(enrichR)
 library(patchwork)
+library(scRepertoire)
 
 setwd("/home/hnatri/19130_CAR_production/")
 set.seed(1234)
@@ -39,19 +40,18 @@ source("/home/hnatri/19130_CAR_production/code/colors_themes.R")
 gs4_deauth()
 cluster_annot  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
 cluster_annot <- read_sheet(cluster_annot, sheet = "Cluster annotations")
-head(cluster_annot)
 
 ```
 
 ### Import data
 
-```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide', eval = F}
+```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide'}
 
+#, eval = F 
 # Integrated data
 integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_ProjecTILs.rds")
 integrated_seurat$cluster <- integrated_seurat$integratedSCTsnn_res.1
 
-# Adding annotations
 integrated_seurat$annot <- mapvalues(x = integrated_seurat$cluster,
                                      from = cluster_annot$integratedSCTsnn_res.1,
                                      to = cluster_annot$cluster_name)
@@ -66,19 +66,15 @@ combined_tcr <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130
 #combined_tcr_df <- do.call("rbind", combined_tcr)
 
 # Renaming and downgrading assays from v5 to v3 for sce conversion
-integrated_seurat[["RNA"]] <- as(integrated_seurat[["RNA"]], Class="Assay")
-integrated_seurat[["SoupX_RNA"]] <- as(integrated_seurat[["SoupX_RNA"]], Class="Assay")
-
-integrated_seurat[["SoupXRNA"]] = integrated_seurat[["SoupX_RNA"]]
-integrated_seurat[["SoupX_RNA"]] <- NULL
-
-# Converting Seurat to sce
-sce <- as.SingleCellExperiment(integrated_seurat,
-                               assay = "RNA")
+#integrated_seurat[["RNA"]] <- as(integrated_seurat[["RNA"]], Class="Assay")
+#integrated_seurat[["SoupX_RNA"]] <- as(integrated_seurat[["SoupX_RNA"]], Class="Assay")
+#
+#integrated_seurat[["SoupXRNA"]] = integrated_seurat[["SoupX_RNA"]]
+#integrated_seurat[["SoupX_RNA"]] <- NULL
 
 # Adding TCR info to the object
-sce <- scRepertoire::combineExpression(combined_tcr,
-                                       sce,
+integrated_seurat <- scRepertoire::combineExpression(combined_tcr,
+                                       integrated_seurat,
                                        cloneCall = "gene",
                                        group.by = "sample",
                                        proportion = FALSE,
@@ -88,18 +84,13 @@ sce <- scRepertoire::combineExpression(combined_tcr,
                                                      Large = 100,
                                                      Hyperexpanded = 500))
 
-# Converting to Seurat
-integrated_seurat <- as.Seurat(sce,
-                               counts = "counts",
-                               data = "logcounts")
-
-#saveRDS(integrated_seurat, "/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
+saveRDS(integrated_seurat, "/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
 
 ```
 
 ```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide'}
 
-integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
+#integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
 
 ```
 
@@ -129,7 +120,7 @@ Numbers of reads (log-normalized) mapping to the IL13Ra2 CAR construct
 DimPlot(integrated_seurat,
         group.by = "annot",
         cols = product_celltype_col,
-        reduction = reduction,
+        reduction = "integratedSCTumap",
         label = T,
         label.box = T,
         label.size = 3,

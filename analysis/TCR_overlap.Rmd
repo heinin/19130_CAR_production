@@ -37,7 +37,6 @@ source("/home/hnatri/19130_CAR_production/code/colors_themes.R")
 gs4_deauth()
 cluster_annot  <- gs4_get("https://docs.google.com/spreadsheets/d/1DstdK4vXjk7ZEeBalW_4CA6Vmd57BGENUx3iMDRLszk/edit?usp=sharing")
 cluster_annot <- read_sheet(cluster_annot, sheet = "Cluster annotations")
-head(cluster_annot)
 
 ```
 
@@ -90,7 +89,7 @@ combined_tcr <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130
 DimPlot(integrated_seurat,
         group.by = "annot",
         cols = product_celltype_col,
-        reduction = reduction,
+        reduction = "integratedSCTumap",
         label = T,
         label.box = T,
         label.size = 3,
