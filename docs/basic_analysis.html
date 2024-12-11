@@ -575,15 +575,15 @@ code/colors_themes.R
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomheinin19130CARproductiontree1299f37ba3f112a38f20e8e76097deaefa813363targetblank1299f37a">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcomheinin19130CARproductiontreead2c1f2edf129059cb94393e283f7645ea9b6039targetblankad2c1f2a">
 <span class="glyphicon glyphicon-ok text-success"
 aria-hidden="true"></span> <strong>Repository version:</strong>
-<a href="https://github.com/heinin/19130_CAR_production/tree/1299f37ba3f112a38f20e8e76097deaefa813363" target="_blank">1299f37</a>
+<a href="https://github.com/heinin/19130_CAR_production/tree/ad2c1f2edf129059cb94393e283f7645ea9b6039" target="_blank">ad2c1f2</a>
 </a>
 </p>
 </div>
 <div
-id="strongRepositoryversionstrongahrefhttpsgithubcomheinin19130CARproductiontree1299f37ba3f112a38f20e8e76097deaefa813363targetblank1299f37a"
+id="strongRepositoryversionstrongahrefhttpsgithubcomheinin19130CARproductiontreead2c1f2edf129059cb94393e283f7645ea9b6039targetblankad2c1f2a"
 class="panel-collapse collapse">
 <div class="panel-body">
 <p>
@@ -593,7 +593,7 @@ reproducibility.
 </p>
 <p>
 The results in this page were generated with repository version
-<a href="https://github.com/heinin/19130_CAR_production/tree/1299f37ba3f112a38f20e8e76097deaefa813363" target="_blank">1299f37</a>.
+<a href="https://github.com/heinin/19130_CAR_production/tree/ad2c1f2edf129059cb94393e283f7645ea9b6039" target="_blank">ad2c1f2</a>.
 See the <em>Past versions</em> tab to see a history of the changes made
 to the R Markdown and HTML files.
 </p>
@@ -611,7 +611,6 @@ Ignored files:
     Ignored:    code/.RData
 
 Unstaged changes:
-    Modified:   analysis/annotation.Rmd
     Modified:   analysis/basic_analysis.Rmd
 
 </code></pre>
@@ -658,6 +657,40 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/heinin/19130_CAR_production/blob/c7226f420bb1faa1503ddede800eac39b224bf56/analysis/basic_analysis.Rmd" target="_blank">c7226f4</a>
+</td>
+<td>
+heinin
+</td>
+<td>
+2024-12-10
+</td>
+<td>
+Fixed legends
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/heinin/19130_CAR_production/c7226f420bb1faa1503ddede800eac39b224bf56/docs/basic_analysis.html" target="_blank">c7226f4</a>
+</td>
+<td>
+heinin
+</td>
+<td>
+2024-12-10
+</td>
+<td>
+Fixed legends
+</td>
+</tr>
 <tr>
 <td>
 Rmd
@@ -767,8 +800,7 @@ cluster_annot &lt;- read_sheet(cluster_annot, sheet = &quot;Cluster annotations&
 </div>
 <div id="import-data" class="section level3">
 <h3>Import data</h3>
-<pre class="r"><code>#, eval = F 
-# Integrated data
+<pre class="r"><code># Integrated data
 integrated_seurat &lt;- readRDS(&quot;/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_ProjecTILs.rds&quot;)
 integrated_seurat$cluster &lt;- integrated_seurat$integratedSCTsnn_res.1
 
@@ -804,8 +836,8 @@ integrated_seurat &lt;- scRepertoire::combineExpression(combined_tcr,
                                                      Large = 100,
                                                      Hyperexpanded = 500))
 
-saveRDS(integrated_seurat, &quot;/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds&quot;)</code></pre>
-<pre class="r"><code>#integrated_seurat &lt;- readRDS(&quot;/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds&quot;)</code></pre>
+#saveRDS(integrated_seurat, &quot;/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds&quot;)</code></pre>
+<pre class="r"><code>integrated_seurat &lt;- readRDS(&quot;/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds&quot;)</code></pre>
 </div>
 <div id="sample-types" class="section level3">
 <h3>Sample types</h3>
@@ -1050,17 +1082,15 @@ heinin
 </table>
 </div>
 </div>
-</div>
-<div id="cell-numbers" class="section level3">
-<h3>Cell numbers</h3>
-<pre class="r"><code>table(integrated_seurat$Sample_Name) %&gt;%
-  as.data.frame() %&gt;%
-  ggplot(aes(x = reorder(Var1, -Freq), y = Freq)) + 
-  geom_bar(stat = &quot;identity&quot;) +
-  theme_minimal() +
-  RotatedAxis() +
-  xlab(&quot;Sample&quot;) +
-  ylab(&quot;# cells&quot;)</code></pre>
+<p>Expression by sample</p>
+<pre class="r"><code>VlnPlot(integrated_seurat,
+        features = c(&quot;IL13OP&quot;),
+        group.by = &quot;Sample_Name&quot;,
+        #cols = product_celltype_col,
+        pt.size = 0) &amp;
+  theme_classic() +
+  NoLegend() +
+  RotatedAxis()</code></pre>
 <p><img src="figure/basic_analysis.Rmd/unnamed-chunk-7-1.png" width="480" style="display: block; margin: auto;" /></p>
 <p>
 <button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-7-1">
@@ -1086,6 +1116,17 @@ Date
 <tbody>
 <tr>
 <td>
+<a href="https://github.com/heinin/19130_CAR_production/blob/c7226f420bb1faa1503ddede800eac39b224bf56/docs/figure/basic_analysis.Rmd/unnamed-chunk-7-1.png" target="_blank">c7226f4</a>
+</td>
+<td>
+heinin
+</td>
+<td>
+2024-12-10
+</td>
+</tr>
+<tr>
+<td>
 <a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-7-1.png" target="_blank">1e48249</a>
 </td>
 <td>
@@ -1100,26 +1141,17 @@ heinin
 </div>
 </div>
 </div>
-<div id="cell-type-proportions" class="section level3">
-<h3>Cell type proportions</h3>
-<pre class="r"><code># seurat_object = Seurat object
-# plot_var = e.g. cluster
-# group_var = e.g. response (cell proportions are plotted for each group)
-# group_levels = a vector for ordering the grouping variable levels
-# plot_levels = a vector for ordering the plot variable levels
-# plot_colors = A named vector of colors to use in the plot, corresponding to plot_var (e.g. cluster colors)
-# var_names = Used as axis titles, c(&quot;plot_var_name&quot;, &quot;group_var_name&quot;)
-# legend_title = Legend title, (&quot;&quot; for no title)
-
-create_barplot(seurat_object = integrated_seurat,
-               plot_var = &quot;annot&quot;,
-               group_var = &quot;Sample_Name&quot;,
-               group_levels = unique(integrated_seurat$Sample_Name),
-               plot_levels = sort(unique(integrated_seurat$annot)),
-               plot_colors = product_celltype_col,
-               var_names = c(&quot;% cells&quot;, &quot;Sample&quot;),
-               legend_title = &quot;Cell type&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-8-1.png" width="960" style="display: block; margin: auto;" /></p>
+<div id="cell-numbers" class="section level3">
+<h3>Cell numbers</h3>
+<pre class="r"><code>table(integrated_seurat$Sample_Name) %&gt;%
+  as.data.frame() %&gt;%
+  ggplot(aes(x = reorder(Var1, -Freq), y = Freq)) + 
+  geom_bar(stat = &quot;identity&quot;) +
+  theme_minimal() +
+  RotatedAxis() +
+  xlab(&quot;Sample&quot;) +
+  ylab(&quot;# cells&quot;)</code></pre>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-8-1.png" width="480" style="display: block; margin: auto;" /></p>
 <p>
 <button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-8-1">
 Past versions of unnamed-chunk-8-1.png
@@ -1168,25 +1200,27 @@ heinin
 </table>
 </div>
 </div>
-<p>Pairwise comparisons</p>
+</div>
+<div id="cell-type-proportions" class="section level3">
+<h3>Cell type proportions</h3>
 <pre class="r"><code># seurat_object = Seurat object
-# group_var = e.g. CD3_status
-# group1 = e.g. High
-# group2 = e.g. Low
-# plot_var = e.g. celltype
-# plot_colors = A named vector of colors to use in the plot, corresponding to plot_var (e.g. cell type colors)
-# var_names = Used as axis titles, c(&quot;group2&quot;, &quot;group1&quot;)
+# plot_var = e.g. cluster
+# group_var = e.g. response (cell proportions are plotted for each group)
+# group_levels = a vector for ordering the grouping variable levels
+# plot_levels = a vector for ordering the plot variable levels
+# plot_colors = A named vector of colors to use in the plot, corresponding to plot_var (e.g. cluster colors)
+# var_names = Used as axis titles, c(&quot;plot_var_name&quot;, &quot;group_var_name&quot;)
 # legend_title = Legend title, (&quot;&quot; for no title)
 
-create_clusterpropplot(seurat_object = integrated_seurat,
-                       plot_var = &quot;annot&quot;,
-                       group_var = &quot;Sample_Name&quot;,
-                       group1 = &quot;Pre_CAR_1&quot;,
-                       group2 = &quot;Pre_CAR_0&quot;,
-                       plot_colors = product_celltype_col,
-                       var_names = c(&quot;Pre-CAR D1&quot;, &quot;Pre-CAR D0&quot;),
-                       legend_title = &quot;Cell type&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-9-1.png" width="384" style="display: block; margin: auto;" /></p>
+create_barplot(seurat_object = integrated_seurat,
+               plot_var = &quot;annot&quot;,
+               group_var = &quot;Sample_Name&quot;,
+               group_levels = unique(integrated_seurat$Sample_Name),
+               plot_levels = sort(unique(integrated_seurat$annot)),
+               plot_colors = product_celltype_col,
+               var_names = c(&quot;% cells&quot;, &quot;Sample&quot;),
+               legend_title = &quot;Cell type&quot;)</code></pre>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-9-1.png" width="960" style="display: block; margin: auto;" /></p>
 <p>
 <button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-9-1">
 Past versions of unnamed-chunk-9-1.png
@@ -1224,21 +1258,79 @@ heinin
 </table>
 </div>
 </div>
-<pre class="r"><code>create_clusterpropplot(seurat_object = integrated_seurat,
+<p>Pairwise comparisons</p>
+<pre class="r"><code># seurat_object = Seurat object
+# group_var = e.g. CD3_status
+# group1 = e.g. High
+# group2 = e.g. Low
+# plot_var = e.g. celltype
+# plot_colors = A named vector of colors to use in the plot, corresponding to plot_var (e.g. cell type colors)
+# var_names = Used as axis titles, c(&quot;group2&quot;, &quot;group1&quot;)
+# legend_title = Legend title, (&quot;&quot; for no title)
+
+create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = &quot;annot&quot;,
                        group_var = &quot;Sample_Name&quot;,
-                       group1 = &quot;CAR_4&quot;,
-                       group2 = &quot;Mock_4&quot;,
+                       group2 = &quot;Pre_CAR_1&quot;,
+                       group1 = &quot;Pre_CAR_0&quot;,
+                       plot_colors = product_celltype_col,
+                       var_names = c(&quot;Pre-CAR D0&quot;, &quot;Pre-CAR D1&quot;),
+                       legend_title = &quot;Cell type&quot;)</code></pre>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-10-1.png" width="384" style="display: block; margin: auto;" /></p>
+<p>
+<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-10-1">
+Past versions of unnamed-chunk-10-1.png
+</button>
+</p>
+<div id="fig-unnamed-chunk-10-1" class="collapse">
+<div class="table-responsive">
+<table class="table table-condensed table-hover">
+<thead>
+<tr>
+<th>
+Version
+</th>
+<th>
+Author
+</th>
+<th>
+Date
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-10-1.png" target="_blank">1e48249</a>
+</td>
+<td>
+heinin
+</td>
+<td>
+2024-12-06
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<pre class="r"><code>table(integrated_seurat$annot, integrated_seurat$Sample_Name)
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = &quot;annot&quot;,
+                       group_var = &quot;Sample_Name&quot;,
+                       group2 = &quot;CAR_4&quot;,
+                       group1 = &quot;Mock_4&quot;,
                        plot_colors = product_celltype_col,
                        var_names = c(&quot;Mock D4&quot;, &quot;CAR D4&quot;),
                        legend_title = &quot;Cell type&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-9-2.png" width="384" style="display: block; margin: auto;" /></p>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-10-2.png" width="384" style="display: block; margin: auto;" /></p>
 <p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-9-2">
-Past versions of unnamed-chunk-9-2.png
+<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-10-2">
+Past versions of unnamed-chunk-10-2.png
 </button>
 </p>
-<div id="fig-unnamed-chunk-9-2" class="collapse">
+<div id="fig-unnamed-chunk-10-2" class="collapse">
 <div class="table-responsive">
 <table class="table table-condensed table-hover">
 <thead>
@@ -1257,7 +1349,7 @@ Date
 <tbody>
 <tr>
 <td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-9-2.png" target="_blank">1e48249</a>
+<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-10-2.png" target="_blank">1e48249</a>
 </td>
 <td>
 heinin
@@ -1273,18 +1365,18 @@ heinin
 <pre class="r"><code>create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = &quot;annot&quot;,
                        group_var = &quot;Sample_Name&quot;,
-                       group1 = &quot;CAR_7&quot;,
-                       group2 = &quot;Mock_7&quot;,
+                       group2 = &quot;CAR_7&quot;,
+                       group1 = &quot;Mock_7&quot;,
                        plot_colors = product_celltype_col,
                        var_names = c(&quot;Mock D7&quot;, &quot;CAR D7&quot;),
                        legend_title = &quot;Cell type&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-9-3.png" width="384" style="display: block; margin: auto;" /></p>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-10-3.png" width="384" style="display: block; margin: auto;" /></p>
 <p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-9-3">
-Past versions of unnamed-chunk-9-3.png
+<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-10-3">
+Past versions of unnamed-chunk-10-3.png
 </button>
 </p>
-<div id="fig-unnamed-chunk-9-3" class="collapse">
+<div id="fig-unnamed-chunk-10-3" class="collapse">
 <div class="table-responsive">
 <table class="table table-condensed table-hover">
 <thead>
@@ -1303,7 +1395,7 @@ Date
 <tbody>
 <tr>
 <td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-9-3.png" target="_blank">1e48249</a>
+<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-10-3.png" target="_blank">1e48249</a>
 </td>
 <td>
 heinin
@@ -1319,18 +1411,18 @@ heinin
 <pre class="r"><code>create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = &quot;annot&quot;,
                        group_var = &quot;Sample_Name&quot;,
-                       group1 = &quot;CAR_14&quot;,
-                       group2 = &quot;Mock_14&quot;,
+                       group2 = &quot;CAR_14&quot;,
+                       group1 = &quot;Mock_14&quot;,
                        plot_colors = product_celltype_col,
                        var_names = c(&quot;Mock D14&quot;, &quot;CAR D14&quot;),
                        legend_title = &quot;Cell type&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-9-4.png" width="384" style="display: block; margin: auto;" /></p>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-10-4.png" width="384" style="display: block; margin: auto;" /></p>
 <p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-9-4">
-Past versions of unnamed-chunk-9-4.png
+<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-10-4">
+Past versions of unnamed-chunk-10-4.png
 </button>
 </p>
-<div id="fig-unnamed-chunk-9-4" class="collapse">
+<div id="fig-unnamed-chunk-10-4" class="collapse">
 <div class="table-responsive">
 <table class="table table-condensed table-hover">
 <thead>
@@ -1349,7 +1441,7 @@ Date
 <tbody>
 <tr>
 <td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-9-4.png" target="_blank">1e48249</a>
+<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-10-4.png" target="_blank">1e48249</a>
 </td>
 <td>
 heinin
@@ -1430,13 +1522,13 @@ celltype_markers %&gt;% filter(cluster == &quot;Mock_14&quot;,
                             avg_log2FC &gt; 0.5) %&gt;% dim()
 
 wrap_plots(plot_list, ncol = 2) + plot_annotation(title = &quot;GO: BP&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-12-1.png" width="1152" style="display: block; margin: auto;" /></p>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-13-1.png" width="1152" style="display: block; margin: auto;" /></p>
 <p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-12-1">
-Past versions of unnamed-chunk-12-1.png
+<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-13-1">
+Past versions of unnamed-chunk-13-1.png
 </button>
 </p>
-<div id="fig-unnamed-chunk-12-1" class="collapse">
+<div id="fig-unnamed-chunk-13-1" class="collapse">
 <div class="table-responsive">
 <table class="table table-condensed table-hover">
 <thead>
@@ -1455,7 +1547,7 @@ Date
 <tbody>
 <tr>
 <td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1299f37ba3f112a38f20e8e76097deaefa813363/docs/figure/basic_analysis.Rmd/unnamed-chunk-12-1.png" target="_blank">1299f37</a>
+<a href="https://github.com/heinin/19130_CAR_production/blob/c7226f420bb1faa1503ddede800eac39b224bf56/docs/figure/basic_analysis.Rmd/unnamed-chunk-13-1.png" target="_blank">c7226f4</a>
 </td>
 <td>
 heinin
@@ -1466,7 +1558,18 @@ heinin
 </tr>
 <tr>
 <td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-12-1.png" target="_blank">1e48249</a>
+<a href="https://github.com/heinin/19130_CAR_production/blob/1299f37ba3f112a38f20e8e76097deaefa813363/docs/figure/basic_analysis.Rmd/unnamed-chunk-13-1.png" target="_blank">1299f37</a>
+</td>
+<td>
+heinin
+</td>
+<td>
+2024-12-10
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-13-1.png" target="_blank">1e48249</a>
 </td>
 <td>
 heinin
@@ -1499,66 +1602,7 @@ head(as.data.frame(enrich_list[[&quot;CAR_14&quot;]][[3]]))
 head(as.data.frame(enrich_list[[&quot;Mock_14&quot;]][[3]]))
 
 wrap_plots(plot_list, ncol = 2) + plot_annotation(title = &quot;GO: BP&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-13-1.png" width="1152" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-13-1">
-Past versions of unnamed-chunk-13-1.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-13-1" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1299f37ba3f112a38f20e8e76097deaefa813363/docs/figure/basic_analysis.Rmd/unnamed-chunk-13-1.png" target="_blank">1299f37</a>
-</td>
-<td>
-heinin
-</td>
-<td>
-2024-12-10
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-13-1.png" target="_blank">1e48249</a>
-</td>
-<td>
-heinin
-</td>
-<td>
-2024-12-06
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<div id="shared-and-unique-pathways" class="section level3">
-<h3>Shared and unique pathways</h3>
-<pre class="r"><code>input_list &lt;- lapply(enrich_list, function(xx){
-  xx[[1]]$Term
-})
-names(input_list) &lt;- names(enrich_list)
-
-upset(fromList(input_list), order.by = &quot;freq&quot;, nsets = 9)
-grid.text(&quot;GO:MF&quot;, x = 0.65, y = 0.95, gp = gpar(fontsize=12))</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-14-1.png" width="768" style="display: block; margin: auto;" /></p>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-14-1.png" width="1152" style="display: block; margin: auto;" /></p>
 <p>
 <button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-14-1">
 Past versions of unnamed-chunk-14-1.png
@@ -1581,6 +1625,17 @@ Date
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+<a href="https://github.com/heinin/19130_CAR_production/blob/c7226f420bb1faa1503ddede800eac39b224bf56/docs/figure/basic_analysis.Rmd/unnamed-chunk-14-1.png" target="_blank">c7226f4</a>
+</td>
+<td>
+heinin
+</td>
+<td>
+2024-12-10
+</td>
+</tr>
 <tr>
 <td>
 <a href="https://github.com/heinin/19130_CAR_production/blob/1299f37ba3f112a38f20e8e76097deaefa813363/docs/figure/basic_analysis.Rmd/unnamed-chunk-14-1.png" target="_blank">1299f37</a>
@@ -1607,133 +1662,17 @@ heinin
 </table>
 </div>
 </div>
+</div>
+<div id="shared-and-unique-pathways" class="section level3">
+<h3>Shared and unique pathways</h3>
 <pre class="r"><code>input_list &lt;- lapply(enrich_list, function(xx){
-  xx[[2]]$Term
+  xx[[1]]$Term
 })
 names(input_list) &lt;- names(enrich_list)
 
 upset(fromList(input_list), order.by = &quot;freq&quot;, nsets = 9)
-grid.text(&quot;GO:CC&quot;, x = 0.65, y = 0.95, gp = gpar(fontsize=12))</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-14-2.png" width="768" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-14-2">
-Past versions of unnamed-chunk-14-2.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-14-2" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1299f37ba3f112a38f20e8e76097deaefa813363/docs/figure/basic_analysis.Rmd/unnamed-chunk-14-2.png" target="_blank">1299f37</a>
-</td>
-<td>
-heinin
-</td>
-<td>
-2024-12-10
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-14-2.png" target="_blank">1e48249</a>
-</td>
-<td>
-heinin
-</td>
-<td>
-2024-12-06
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<pre class="r"><code>input_list &lt;- lapply(enrich_list, function(xx){
-  xx[[3]]$Term
-})
-names(input_list) &lt;- names(enrich_list)
-
-upset(fromList(input_list), order.by = &quot;freq&quot;, nsets = 9)
-grid.text(&quot;GO:BP&quot;, x = 0.65, y = 0.95, gp = gpar(fontsize=12))</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-14-3.png" width="768" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-14-3">
-Past versions of unnamed-chunk-14-3.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-14-3" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1299f37ba3f112a38f20e8e76097deaefa813363/docs/figure/basic_analysis.Rmd/unnamed-chunk-14-3.png" target="_blank">1299f37</a>
-</td>
-<td>
-heinin
-</td>
-<td>
-2024-12-10
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-14-3.png" target="_blank">1e48249</a>
-</td>
-<td>
-heinin
-</td>
-<td>
-2024-12-06
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<div id="non-enriched-vs.-enriched-car-d14" class="section level3">
-<h3>Non-enriched vs. enriched CAR D14</h3>
-<pre class="r"><code>integrated_seurat$Sample_Name &lt;- gsub(&quot;5050_CAR_14&quot;, &quot;nonEnriched_CAR_14&quot;,
-                                      integrated_seurat$Sample_Name)
-
-create_clusterpropplot(seurat_object = integrated_seurat,
-                       plot_var = &quot;annot&quot;,
-                       group_var = &quot;Sample_Name&quot;,
-                       group2 = &quot;nonEnriched_CAR_14&quot;,
-                       group1 = &quot;CAR_14&quot;,
-                       plot_colors = product_celltype_col,
-                       var_names = c(&quot;Non-enriched CAR D14&quot;, &quot;Enriched CAR D14&quot;),
-                       legend_title = &quot;Cell type&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-15-1.png" width="384" style="display: block; margin: auto;" /></p>
+grid.text(&quot;GO:MF&quot;, x = 0.65, y = 0.95, gp = gpar(fontsize=12))</code></pre>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-15-1.png" width="768" style="display: block; margin: auto;" /></p>
 <p>
 <button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-15-1">
 Past versions of unnamed-chunk-15-1.png
@@ -1771,16 +1710,72 @@ heinin
 </table>
 </div>
 </div>
+<pre class="r"><code>input_list &lt;- lapply(enrich_list, function(xx){
+  xx[[2]]$Term
+})
+names(input_list) &lt;- names(enrich_list)
+
+upset(fromList(input_list), order.by = &quot;freq&quot;, nsets = 9)
+grid.text(&quot;GO:CC&quot;, x = 0.65, y = 0.95, gp = gpar(fontsize=12))</code></pre>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-15-2.png" width="768" style="display: block; margin: auto;" /></p>
+<p>
+<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-15-2">
+Past versions of unnamed-chunk-15-2.png
+</button>
+</p>
+<div id="fig-unnamed-chunk-15-2" class="collapse">
+<div class="table-responsive">
+<table class="table table-condensed table-hover">
+<thead>
+<tr>
+<th>
+Version
+</th>
+<th>
+Author
+</th>
+<th>
+Date
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-15-2.png" target="_blank">1e48249</a>
+</td>
+<td>
+heinin
+</td>
+<td>
+2024-12-06
+</td>
+</tr>
+</tbody>
+</table>
 </div>
-<div id="pre-car-vs.-d14-freezedown" class="section level3">
-<h3>Pre-CAR vs. D14 (freezedown)</h3>
-<pre class="r"><code>create_clusterpropplot(seurat_object = integrated_seurat,
+</div>
+<pre class="r"><code>input_list &lt;- lapply(enrich_list, function(xx){
+  xx[[3]]$Term
+})
+names(input_list) &lt;- names(enrich_list)
+
+upset(fromList(input_list), order.by = &quot;freq&quot;, nsets = 9)
+grid.text(&quot;GO:BP&quot;, x = 0.65, y = 0.95, gp = gpar(fontsize=12))</code></pre>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-15-3.png" width="768" style="display: block; margin: auto;" /></p>
+</div>
+<div id="non-enriched-vs.-enriched-car-d14" class="section level3">
+<h3>Non-enriched vs. enriched CAR D14</h3>
+<pre class="r"><code>integrated_seurat$Sample_Name &lt;- gsub(&quot;5050_CAR_14&quot;, &quot;nonEnriched_CAR_14&quot;,
+                                      integrated_seurat$Sample_Name)
+
+create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = &quot;annot&quot;,
                        group_var = &quot;Sample_Name&quot;,
-                       group1 = &quot;Pre_CAR_0&quot;,
+                       group1 = &quot;nonEnriched_CAR_14&quot;,
                        group2 = &quot;CAR_14&quot;,
                        plot_colors = product_celltype_col,
-                       var_names = c(&quot;Pre-CAR D0&quot;, &quot;CAR D14&quot;),
+                       var_names = c(&quot;Non-enriched CAR D14&quot;, &quot;Enriched CAR D14&quot;),
                        legend_title = &quot;Cell type&quot;)</code></pre>
 <p><img src="figure/basic_analysis.Rmd/unnamed-chunk-16-1.png" width="384" style="display: block; margin: auto;" /></p>
 <p>
@@ -1820,68 +1815,18 @@ heinin
 </table>
 </div>
 </div>
+</div>
+<div id="pre-car-vs.-d14-freezedown" class="section level3">
+<h3>Pre-CAR vs. D14 (freezedown)</h3>
 <pre class="r"><code>create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = &quot;annot&quot;,
                        group_var = &quot;Sample_Name&quot;,
-                       group1 = &quot;Pre_CAR_1&quot;,
+                       group1 = &quot;Pre_CAR_0&quot;,
                        group2 = &quot;CAR_14&quot;,
                        plot_colors = product_celltype_col,
-                       var_names = c(&quot;Pre-CAR D1&quot;, &quot;CAR D14&quot;),
+                       var_names = c(&quot;Pre-CAR D0&quot;, &quot;CAR D14&quot;),
                        legend_title = &quot;Cell type&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-16-2.png" width="384" style="display: block; margin: auto;" /></p>
-<p>
-<button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-16-2">
-Past versions of unnamed-chunk-16-2.png
-</button>
-</p>
-<div id="fig-unnamed-chunk-16-2" class="collapse">
-<div class="table-responsive">
-<table class="table table-condensed table-hover">
-<thead>
-<tr>
-<th>
-Version
-</th>
-<th>
-Author
-</th>
-<th>
-Date
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>
-<a href="https://github.com/heinin/19130_CAR_production/blob/1e48249035d954c82c5e0816edae3d270b86cda5/docs/figure/basic_analysis.Rmd/unnamed-chunk-16-2.png" target="_blank">1e48249</a>
-</td>
-<td>
-heinin
-</td>
-<td>
-2024-12-06
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<pre class="r"><code>table(integrated_seurat$annot, integrated_seurat$Sample_Name)</code></pre>
-</div>
-<div id="expanded-vs.-non-expanded-clones" class="section level3">
-<h3>Expanded vs. non-expanded clones</h3>
-<pre class="r"><code>create_barplot(seurat_object = integrated_seurat,
-               plot_var = &quot;annot&quot;,
-               group_var = &quot;cloneSize&quot;,
-               group_levels = c(&quot;Single (0 &lt; X &lt;= 1)&quot;,
-                                &quot;Small (1 &lt; X &lt;= 5)&quot;,
-                                &quot;Medium (5 &lt; X &lt;= 20)&quot;,
-                                &quot;Large (20 &lt; X &lt;= 100)&quot;),
-               plot_levels = sort(unique(integrated_seurat$annot)),
-               plot_colors = product_celltype_col,
-               var_names = c(&quot;% cells&quot;, &quot;Sample&quot;),
-               legend_title = &quot;Cell type&quot;) + xlab(&quot;&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-17-1.png" width="960" style="display: block; margin: auto;" /></p>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-17-1.png" width="384" style="display: block; margin: auto;" /></p>
 <p>
 <button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-17-1">
 Past versions of unnamed-chunk-17-1.png
@@ -1919,21 +1864,31 @@ heinin
 </table>
 </div>
 </div>
-<p>Comparing single clones to expanded clones</p>
-<pre class="r"><code>integrated_seurat$expanded &lt;- ifelse(integrated_seurat$cloneSize == &quot;Single (0 &lt; X &lt;= 1)&quot;, &quot;single&quot;,
-                                     ifelse(integrated_seurat$cloneSize %in% c(&quot;Small (1 &lt; X &lt;= 5)&quot;,
-                                                                               &quot;Medium (5 &lt; X &lt;= 20) &quot;,
-                                                                               &quot;Large (20 &lt; X &lt;= 100)&quot;), &quot;expanded&quot;, NA))
-
-create_clusterpropplot(seurat_object = integrated_seurat,
+<pre class="r"><code>create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = &quot;annot&quot;,
-                       group_var = &quot;expanded&quot;,
-                       group1 = &quot;single&quot;,
-                       group2 = &quot;expanded&quot;,
+                       group_var = &quot;Sample_Name&quot;,
+                       group1 = &quot;Pre_CAR_1&quot;,
+                       group2 = &quot;CAR_14&quot;,
                        plot_colors = product_celltype_col,
-                       var_names = c(&quot;Single&quot;, &quot;Expanded (small, medium, large)&quot;),
+                       var_names = c(&quot;Pre-CAR D1&quot;, &quot;CAR D14&quot;),
                        legend_title = &quot;Cell type&quot;)</code></pre>
-<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-18-1.png" width="384" style="display: block; margin: auto;" /></p>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-17-2.png" width="384" style="display: block; margin: auto;" /></p>
+<pre class="r"><code>table(integrated_seurat$annot, integrated_seurat$Sample_Name)</code></pre>
+</div>
+<div id="expanded-vs.-non-expanded-clones" class="section level3">
+<h3>Expanded vs. non-expanded clones</h3>
+<pre class="r"><code>create_barplot(seurat_object = integrated_seurat,
+               plot_var = &quot;annot&quot;,
+               group_var = &quot;cloneSize&quot;,
+               group_levels = c(&quot;Single (0 &lt; X &lt;= 1)&quot;,
+                                &quot;Small (1 &lt; X &lt;= 5)&quot;,
+                                &quot;Medium (5 &lt; X &lt;= 20)&quot;,
+                                &quot;Large (20 &lt; X &lt;= 100)&quot;),
+               plot_levels = sort(unique(integrated_seurat$annot)),
+               plot_colors = product_celltype_col,
+               var_names = c(&quot;% cells&quot;, &quot;Sample&quot;),
+               legend_title = &quot;Cell type&quot;) + xlab(&quot;&quot;)</code></pre>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-18-1.png" width="960" style="display: block; margin: auto;" /></p>
 <p>
 <button type="button" class="btn btn-default btn-xs btn-workflowr btn-workflowr-fig" data-toggle="collapse" data-target="#fig-unnamed-chunk-18-1">
 Past versions of unnamed-chunk-18-1.png
@@ -1971,9 +1926,11 @@ heinin
 </table>
 </div>
 </div>
-<pre class="r"><code>table(integrated_seurat$expanded, integrated_seurat$annot)</code></pre>
+<p>Comparing single clones to expanded clones</p>
 <pre class="r"><code>integrated_seurat$expanded &lt;- ifelse(integrated_seurat$cloneSize == &quot;Single (0 &lt; X &lt;= 1)&quot;, &quot;single&quot;,
-                                     ifelse(integrated_seurat$cloneSize %in% c(&quot;Large (20 &lt; X &lt;= 100)&quot;), &quot;expanded&quot;, NA))
+                                     ifelse(integrated_seurat$cloneSize %in% c(&quot;Small (1 &lt; X &lt;= 5)&quot;,
+                                                                               &quot;Medium (5 &lt; X &lt;= 20) &quot;,
+                                                                               &quot;Large (20 &lt; X &lt;= 100)&quot;), &quot;expanded&quot;, NA))
 
 create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = &quot;annot&quot;,
@@ -1981,7 +1938,7 @@ create_clusterpropplot(seurat_object = integrated_seurat,
                        group1 = &quot;single&quot;,
                        group2 = &quot;expanded&quot;,
                        plot_colors = product_celltype_col,
-                       var_names = c(&quot;Single&quot;, &quot;Expanded (large, &gt;20 copies)&quot;),
+                       var_names = c(&quot;Single&quot;, &quot;Expanded (small, medium, large)&quot;),
                        legend_title = &quot;Cell type&quot;)</code></pre>
 <p><img src="figure/basic_analysis.Rmd/unnamed-chunk-19-1.png" width="384" style="display: block; margin: auto;" /></p>
 <p>
@@ -2021,6 +1978,19 @@ heinin
 </table>
 </div>
 </div>
+<pre class="r"><code>table(integrated_seurat$expanded, integrated_seurat$annot)</code></pre>
+<pre class="r"><code>integrated_seurat$expanded &lt;- ifelse(integrated_seurat$cloneSize == &quot;Single (0 &lt; X &lt;= 1)&quot;, &quot;single&quot;,
+                                     ifelse(integrated_seurat$cloneSize %in% c(&quot;Large (20 &lt; X &lt;= 100)&quot;), &quot;expanded&quot;, NA))
+
+create_clusterpropplot(seurat_object = integrated_seurat,
+                       plot_var = &quot;annot&quot;,
+                       group_var = &quot;expanded&quot;,
+                       group1 = &quot;single&quot;,
+                       group2 = &quot;expanded&quot;,
+                       plot_colors = product_celltype_col,
+                       var_names = c(&quot;Single&quot;, &quot;Expanded (large, &gt;20 copies)&quot;),
+                       legend_title = &quot;Cell type&quot;)</code></pre>
+<p><img src="figure/basic_analysis.Rmd/unnamed-chunk-20-1.png" width="384" style="display: block; margin: auto;" /></p>
 <br>
 <p>
 <button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
@@ -2139,23 +2109,22 @@ loaded via a namespace (and not attached):
 [143] zlibbioc_1.48.2             MASS_7.3-60                
 [145] parallel_4.3.0              listenv_0.9.0              
 [147] deldir_1.0-9                graphlayouts_1.0.0         
-[149] splines_4.3.0               hash_2.2.6.2               
-[151] tensor_1.5                  hms_1.1.3                  
-[153] ps_1.7.5                    igraph_1.4.3               
-[155] spatstat.geom_3.2-1         cubature_2.0.4.6           
-[157] RcppHNSW_0.5.0              reshape2_1.4.4             
-[159] stats4_4.3.0                evaluate_0.21              
-[161] foreach_1.5.2               tzdb_0.4.0                 
-[163] tweenr_2.0.2                httpuv_1.6.11              
-[165] MatrixModels_0.5-1          RANN_2.6.1                 
-[167] polyclip_1.10-4             clue_0.3-64                
-[169] future_1.32.0               scattermore_1.2            
-[171] ggforce_0.4.1               xtable_1.8-4               
-[173] RSpectra_0.16-1             later_1.3.1                
-[175] googledrive_2.1.0           gsl_2.1-8                  
-[177] beeswarm_0.4.0              IRanges_2.36.0             
-[179] cluster_2.1.4               timechange_0.2.0           
-[181] globals_0.16.2             </code></pre>
+[149] splines_4.3.0               tensor_1.5                 
+[151] hms_1.1.3                   ps_1.7.5                   
+[153] igraph_1.4.3                spatstat.geom_3.2-1        
+[155] cubature_2.0.4.6            RcppHNSW_0.5.0             
+[157] reshape2_1.4.4              stats4_4.3.0               
+[159] evaluate_0.21               foreach_1.5.2              
+[161] tzdb_0.4.0                  tweenr_2.0.2               
+[163] httpuv_1.6.11               MatrixModels_0.5-1         
+[165] RANN_2.6.1                  polyclip_1.10-4            
+[167] clue_0.3-64                 future_1.32.0              
+[169] scattermore_1.2             ggforce_0.4.1              
+[171] xtable_1.8-4                RSpectra_0.16-1            
+[173] later_1.3.1                 googledrive_2.1.0          
+[175] gsl_2.1-8                   beeswarm_0.4.0             
+[177] IRanges_2.36.0              cluster_2.1.4              
+[179] timechange_0.2.0            globals_0.16.2             </code></pre>
 </div>
 </div>
 </div>

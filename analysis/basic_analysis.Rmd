@@ -45,9 +45,8 @@ cluster_annot <- read_sheet(cluster_annot, sheet = "Cluster annotations")
 
 ### Import data
 
-```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide'}
+```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide', eval = F}
 
-#, eval = F 
 # Integrated data
 integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_ProjecTILs.rds")
 integrated_seurat$cluster <- integrated_seurat$integratedSCTsnn_res.1
@@ -84,13 +83,13 @@ integrated_seurat <- scRepertoire::combineExpression(combined_tcr,
                                                      Large = 100,
                                                      Hyperexpanded = 500))
 
-saveRDS(integrated_seurat, "/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
+#saveRDS(integrated_seurat, "/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
 
 ```
 
 ```{r, message = F, warning = F, fig.width = 5, fig.height = 5, results = 'hide'}
 
-#integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
+integrated_seurat <- readRDS("/tgen_labs/banovich/pediatric_CAR-T/02_production/19130_CAR_production_integrated_VDJ.rds")
 
 ```
 
@@ -163,6 +162,21 @@ VlnPlot(integrated_seurat,
 
 ```
 
+Expression by sample
+
+```{r, message = F, warning = F, fig.width = 5, fig.height = 4, results = 'hide'}
+
+VlnPlot(integrated_seurat,
+        features = c("IL13OP"),
+        group.by = "Sample_Name",
+        #cols = product_celltype_col,
+        pt.size = 0) &
+  theme_classic() +
+  NoLegend() +
+  RotatedAxis()
+
+```
+
 ### Cell numbers
 
 ```{r, message = F, warning = F, fig.width = 5, fig.height = 4, results = 'hide'}
@@ -218,17 +232,19 @@ Pairwise comparisons
 create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = "annot",
                        group_var = "Sample_Name",
-                       group1 = "Pre_CAR_1",
-                       group2 = "Pre_CAR_0",
+                       group2 = "Pre_CAR_1",
+                       group1 = "Pre_CAR_0",
                        plot_colors = product_celltype_col,
-                       var_names = c("Pre-CAR D1", "Pre-CAR D0"),
+                       var_names = c("Pre-CAR D0", "Pre-CAR D1"),
                        legend_title = "Cell type")
+
+table(integrated_seurat$annot, integrated_seurat$Sample_Name)
 
 create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = "annot",
                        group_var = "Sample_Name",
-                       group1 = "CAR_4",
-                       group2 = "Mock_4",
+                       group2 = "CAR_4",
+                       group1 = "Mock_4",
                        plot_colors = product_celltype_col,
                        var_names = c("Mock D4", "CAR D4"),
                        legend_title = "Cell type")
@@ -236,8 +252,8 @@ create_clusterpropplot(seurat_object = integrated_seurat,
 create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = "annot",
                        group_var = "Sample_Name",
-                       group1 = "CAR_7",
-                       group2 = "Mock_7",
+                       group2 = "CAR_7",
+                       group1 = "Mock_7",
                        plot_colors = product_celltype_col,
                        var_names = c("Mock D7", "CAR D7"),
                        legend_title = "Cell type")
@@ -245,8 +261,8 @@ create_clusterpropplot(seurat_object = integrated_seurat,
 create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = "annot",
                        group_var = "Sample_Name",
-                       group1 = "CAR_14",
-                       group2 = "Mock_14",
+                       group2 = "CAR_14",
+                       group1 = "Mock_14",
                        plot_colors = product_celltype_col,
                        var_names = c("Mock D14", "CAR D14"),
                        legend_title = "Cell type")
@@ -398,8 +414,8 @@ integrated_seurat$Sample_Name <- gsub("5050_CAR_14", "nonEnriched_CAR_14",
 create_clusterpropplot(seurat_object = integrated_seurat,
                        plot_var = "annot",
                        group_var = "Sample_Name",
-                       group2 = "nonEnriched_CAR_14",
-                       group1 = "CAR_14",
+                       group1 = "nonEnriched_CAR_14",
+                       group2 = "CAR_14",
                        plot_colors = product_celltype_col,
                        var_names = c("Non-enriched CAR D14", "Enriched CAR D14"),
                        legend_title = "Cell type")
